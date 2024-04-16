@@ -1,27 +1,45 @@
+import uuid
+import random
+from typing import Dict
 from pony.orm import db_session
 from passlib.hash import bcrypt
-from database.models.models import Match, Player
-from view_entities.match_view_entities import NewMatch
-from typing import Dict
+from view_entities.match_view_entities import NewMatch, JoinMatch
+from ..models.models import Match, Player, Card, CardType, CardColor, Pot
+from ..dao.card_dao import create_deck
+from view_entities.match_view_entities import MatchInfo
+from pony.orm import ERDiagramError
+from utils.match_utils import INTERNAL_ERROR_CREATING_MATCH
 
 
 @db_session
-def create_new_match(new_match: NewMatch):
-    match_password = bcrypt.hash(new_match.password) if new_match.password else ""
-    creator_player = Player(name=new_match.creator_player)
+def create_new_match(name: str, creator_player: str, code: str) -> Match:
+    new_player = Player(name=creator_player)
+    new_player.flush()
 
     try:
-        match = Match(
-            name=new_match.name,
-            creator_player=creator_player,
-            hashed_password=match_password,
+        return Match(
+            name=name,
+            creator_player=new_player,
+            code=code,
+            players=[new_player],
         )
+    except (ERDiagramError, ValueError) as e:
+        raise INTERNAL_ERROR_CREATING_MATCH from e
 
-        print("match players:", creator_player.match)
 
-        return True
-    except:
-        return False
+@db_session
+def get_match_info(match_id: int, player_name: str) -> MatchInfo:
+    match = Match[match_id]
+    player_id = Player.get(name=player_name).player_id
+
+    return MatchInfo(
+        **{
+            **match.to_dict(),
+            "player_id": player_id,
+            "creator_player": match.creator_player.name,
+            "players": [p.name for p in match.players],
+        }
+    )
 
 
 @db_session
@@ -32,13 +50,63 @@ def get_match_by_name_and_user(match_name: str, creator_player: str):
 
 
 @db_session
+def get_match_by_id(match_id: int):
+    return Match.get(match_id=match_id)
+
+
+@db_session
 def get_all_matches():
     return [
         {
-            "match_id": m.match_id,
+            "code": m.code,
             "name": m.name,
-            "players": m.players,
+            "players": [{"name": p.name} for p in m.players],
             "creator_player:": m.creator_player.name,
         }
         for m in Match.select()
+    ]
+
+
+@db_session
+def get_match_by_code(code: str) -> Match:
+    return Match.get(code=code)
+
+
+@db_session
+def update_joining_user_match(match_id: int, player_name: str):
+    match = Match[match_id]
+
+    new_player = Player(name=player_name)
+    new_player.flush()
+
+    try:
+        match.players.add(new_player)
+        return True
+    except:
+        return False
+
+
+@db_session
+def update_executed_match(match_id: int):
+    match = Match[match_id]
+    match.started = True
+
+    deck = create_deck(match)
+
+    # Sacamos una carta del mazo y la ponemos en el pozo
+    card_pot = deck[0]
+    pot = Pot(cards=[card_pot], last_played_card=card_pot, match=match)
+    match.deck = deck[1:]
+
+    return True
+
+
+@db_session
+def get_players_by_match_id(match_id: int):
+    return [
+        {
+            "name": p.name,
+            "hand": [c.to_dict() for c in p.hand],
+        }
+        for p in Match[match_id].players
     ]
