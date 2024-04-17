@@ -22,6 +22,7 @@ def play_card(match_id: int, play_card_data: PlayCard):
 
     if card.card_type == CardType.TAKE_FOUR_WILDCARD:
         match.pot.acumulator += 4
+        match.pot.color = play_card_data.color
         match.current_player_index = (
             match.current_player_index + match.turn_direction
         ) % len(match.players)
