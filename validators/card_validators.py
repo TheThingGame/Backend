@@ -31,8 +31,10 @@ def play_card_validator(match_id: int, player_id: int, card_id: int):
     if not card:
         raise CARD_NOT_FOUND
 
+    # Chequeamos el acumulador
+
     # Chequeamos si la carta puede ser lanzada al pozo
-    if card_type in {CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD}:
+    if card_type in {CardType.WILDCARD, CardType.TAKE_TWO, CardType.TAKE_FOUR_WILDCARD}:
         return
 
     if card_type == CardType.NUMBER:
@@ -42,5 +44,4 @@ def play_card_validator(match_id: int, player_id: int, card_id: int):
 
     if card.color == pot.color or card_type == pot.card_type:
         return
-
     raise INVALID_PLAYED_CARD

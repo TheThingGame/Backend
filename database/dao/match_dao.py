@@ -110,3 +110,13 @@ def get_players_by_match_id(match_id: int):
         }
         for p in Match[match_id].players
     ]
+
+
+@db_session
+def update_turn_and_direction(
+    match_id: int, current_turn: int, direction: int, length: int
+):
+    match = Match[match_id].current_player_index = (current_turn + direction) % length
+    match.current_player_index = (current_turn + direction) % length
+    if direction in [2, -2]:
+        pass

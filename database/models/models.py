@@ -33,14 +33,16 @@ class Card(db.Entity):
 
 class Pot(db.Entity):
     pot_id = PrimaryKey(int, auto=True)
+    acumulator = Optional(int)
     cards = Set(Card)
+    color = Optional(CardColor)
     last_played_card = Optional(Card)
     match = Required("Match")
 
 
 class Player(db.Entity):
     player_id = PrimaryKey(int, auto=True)
-    name = Required(str)
+    name = Required(str, autostrip=True)
     hand = Set("Card")
     match = Optional("Match", reverse="players")
     creator_match = Optional("Match")
@@ -48,7 +50,7 @@ class Player(db.Entity):
 
 class Match(db.Entity):
     match_id = PrimaryKey(int, auto=True)
-    name = Required(str)
+    name = Required(str, autostrip=True)
     creator_player = Required(Player)
     code = Required(str, unique=True)
     min_players = Required(int, default=2)

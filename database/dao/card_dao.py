@@ -70,18 +70,17 @@ def create_deck(match: Match) -> List[Card]:
     # Repartimos las cartas
     current_card_index = 0
     for player in match.players:
-        hand = deck[current_card_index : current_card_index + 5]
-        current_card_index += 5
+        hand = deck[current_card_index : current_card_index + 7]
+        current_card_index += 7
         player.hand = hand
 
-    deck = deck[current_card_index:]
-
-    return deck
+    return deck[current_card_index:]
 
 
 @db_session
 def card_db_to_dict(card: Card):
     return {
+        "card_id": card.card_id,
         "number": card.number if card.number is not None else "",
         "color": card.color if card.color is not None else "",
         "card_type": card.card_type,

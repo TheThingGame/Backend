@@ -1,4 +1,4 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 
 INVALID_PLAYED_CARD = HTTPException(
     status_code=status.HTTP_409_CONFLICT,
