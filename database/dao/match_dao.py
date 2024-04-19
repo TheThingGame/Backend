@@ -1,9 +1,4 @@
-import uuid
-import random
-from typing import Dict
 from pony.orm import db_session
-from passlib.hash import bcrypt
-from view_entities.match_view_entities import NewMatch, JoinMatch
 from ..models.models import Match, Player, Card, CardType, CardColor, Pot
 from ..dao.card_dao import create_deck
 from view_entities.match_view_entities import MatchInfo
@@ -113,10 +108,39 @@ def get_players_by_match_id(match_id: int):
 
 
 @db_session
-def update_turn_and_direction(
-    match_id: int, current_turn: int, direction: int, length: int
-):
-    match = Match[match_id].current_player_index = (current_turn + direction) % length
-    match.current_player_index = (current_turn + direction) % length
-    if direction in [2, -2]:
-        pass
+def update_turn(match_id: int, current_turn: int, direction: int, length: int):
+    Match[match_id].current_player_index = (current_turn + direction) % length
+
+
+@db_session
+def update_match_play_card(match_id: int, card_id: int, color: str | None):
+    match = Match[match_id]
+    card = Card[card_id]
+
+    card_type = card.card_type
+    current_turn = match.current_player_index
+    current_direction = match.turn_direction
+    length = len(match.players)
+
+    if card_type == CardType.TAKE_TWO:
+        match.pot.acumulator += 2
+        update_turn(match_id, current_turn, current_direction, length)
+
+    if card_type == CardType.TAKE_FOUR_WILDCARD:
+        match.pot.acumulator += 4
+        match.pot.color = color
+        update_turn(match_id, current_turn, current_direction, length)
+
+    if card_type == CardType.WILDCARD:
+        match.pot.color = color
+        update_turn(match_id, current_turn, current_direction, length)
+
+    if card_type == CardType.REVERSE:
+        match.turn_direction *= -1
+        update_turn(match_id, current_turn, current_direction * -1, length)
+
+    if card_type == CardType.JUMP:
+        update_turn(match_id, current_turn, current_direction * 2, length)
+
+    if card_type == CardType.NUMBER:
+        update_turn(match_id, current_turn, current_direction, length)

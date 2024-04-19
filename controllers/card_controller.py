@@ -1,53 +1,31 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
+from pony.orm import db_session
 from validators.card_validators import play_card_validator
 from view_entities.card_view_entities import PlayCard
 from database.models.models import CardType, Match, Card
+from database.dao.match_dao import update_match_play_card
+from utils.match_utils import lobbys
 
 card_controller = APIRouter()
 
 
-@card_controller.put("/play-card/{match_id}")
-def play_card(match_id: int, play_card_data: PlayCard):
-    play_card_validator(match_id, play_card_data.player_id, play_card_data.card_id)
-    message = {"action": "", "turn": "", "player_name": ""}
+@card_controller.put("/play-card/{match_id}", status_code=status.HTTP_200_OK)
+async def play_card(match_id: int, play_card_data: PlayCard):
+    # play_card_validator(match_id, play_card_data.player_id, play_card_data.card_id)
+    # update_match_play_card(match_id, play_card_data.card_id, play_card_data.color)
 
-    card = Card[play_card_data.card_id]
-    match = Match[match_id]
+    # with db_session:
+    #   card = Card[play_card_data.card_id]
+    #  match = Match[match_id]
 
-    if card.card_type == CardType.TAKE_TWO:
-        match.pot.acumulator += 2
-        match.current_player_index = (
-            match.current_player_index + match.turn_direction
-        ) % len(match.players)
+    # print("MATCH:", match)
+    # message_to_broadcast = {
+    #   "action": card.card_type,
+    #  "turn": match.current_player_index,
+    # }
+    # await lobbys[match_id].broadcast(message_to_broadcast)
 
-    if card.card_type == CardType.TAKE_FOUR_WILDCARD:
-        match.pot.acumulator += 4
-        match.pot.color = play_card_data.color
-        match.current_player_index = (
-            match.current_player_index + match.turn_direction
-        ) % len(match.players)
-
-    if card.card_type == CardType.WILDCARD:
-        match.pot.color = play_card_data.color
-        match.current_player_index = (
-            match.current_player_index + match.turn_direction
-        ) % len(match.players)
-
-    if card.card_type == CardType.REVERSE:
-        match.turn_direction *= -1
-        match.current_player_index = (
-            (match.current_player_index + (match.turn_direction * -1))
-        ) % len(match.players)
-
-    if card.card_type == CardType.JUMP:
-        match.current_player_index = (
-            match.current_player_index + (2 * match.turn_direction)
-        ) % len(match.players)
-
-    if card.card_type == CardType.NUMBER:
-        match.current_player_index = (
-            match.current_player_index + match.turn_direction
-        ) % len(match.players)
+    return True
 
     # update_plaay_card(match_id, play_card_data)
     # Si la carta es toma 2 actualizamos el acumulador, turno y enviamos un mensaje(action:take_two, take:2 + acumulador)
@@ -59,5 +37,3 @@ def play_card(match_id: int, play_card_data: PlayCard):
     # Si la carta es comodin actualizamos el color y turno
 
     # Si la carta es jump actualizamos turno saltando al jugador de la izquierda
-
-    return

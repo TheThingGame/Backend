@@ -5,19 +5,19 @@ db = Database()
 
 
 class CardType(str, Enum):
-    NUMBER = "number"
-    TAKE_TWO = "take two"
-    REVERSE = "reverse"
-    JUMP = "jump"
-    WILDCARD = "wildcard"
-    TAKE_FOUR_WILDCARD = "take four wildcard"
+    NUMBER = "NUMBER"
+    TAKE_TWO = "TAKE_TWO"
+    REVERSE = "REVERSE"
+    JUMP = "JUMP"
+    WILDCARD = "WILDCARD"
+    TAKE_FOUR_WILDCARD = "TAKE_FOUR_WILDCARD"
 
 
 class CardColor(str, Enum):
-    RED = "red"
-    BLUE = "blue"
-    GREEN = "green"
-    YELLOW = "yellow"
+    RED = "RED"
+    BLUE = "BLUE"
+    GREEN = "GREEN"
+    YELLOW = "YELLOW"
 
 
 class Card(db.Entity):
@@ -26,6 +26,7 @@ class Card(db.Entity):
     color = Optional(CardColor)
     card_type = Required(CardType, default=CardType.NUMBER)
     player = Optional("Player")
+    stealer = Optional("Player")
     pot = Optional("Pot", reverse="cards")
     last_played_in_pot = Set("Pot")
     match_in_deck = Optional("Match", reverse="deck")
@@ -43,7 +44,8 @@ class Pot(db.Entity):
 class Player(db.Entity):
     player_id = PrimaryKey(int, auto=True)
     name = Required(str, autostrip=True)
-    hand = Set("Card")
+    hand = Set(Card)
+    stolen_card = Optional(Card, reverse="stealer")
     match = Optional("Match", reverse="players")
     creator_match = Optional("Match")
 

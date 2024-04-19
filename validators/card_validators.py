@@ -4,7 +4,7 @@ from database.dao.match_dao import get_match_by_id
 from database.dao.player_dao import get_player_by_id
 from utils.match_utils import NOT_EXISTENT_MATCH
 from utils.player_utils import NOT_EXISTENT_PLAYER, NOT_YOUR_TURN
-from utils.cards_utils import INVALID_PLAYED_CARD
+from utils.cards_utils import INVALID_PLAYED_CARD, CARD_NOT_FOUND
 from database.models.models import CardType
 
 
@@ -31,6 +31,8 @@ def play_card_validator(match_id: int, player_id: int, card_id: int):
     if not card:
         raise CARD_NOT_FOUND
 
+    card_type = card.card_type
+    pot = match.pot.last_played_card
     # Chequeamos el acumulador
 
     # Chequeamos si la carta puede ser lanzada al pozo
