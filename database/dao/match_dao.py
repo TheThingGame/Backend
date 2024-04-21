@@ -1,5 +1,5 @@
 from pony.orm import db_session
-from ..models.models import Match, Player, Card, CardType, CardColor, Pot
+from ..models.models import Match, Player, Pot, CardType, Card
 from ..dao.card_dao import create_deck
 from view_entities.match_view_entities import MatchInfo
 from pony.orm import ERDiagramError
@@ -84,6 +84,7 @@ def update_joining_user_match(match_id: int, player_name: str):
 @db_session
 def update_executed_match(match_id: int):
     match = Match[match_id]
+    # Iniciamos la partida
     match.started = True
 
     deck = create_deck(match)
@@ -108,39 +109,48 @@ def get_players_by_match_id(match_id: int):
 
 
 @db_session
-def update_turn(match_id: int, current_turn: int, direction: int, length: int):
-    Match[match_id].current_player_index = (current_turn + direction) % length
+def update_turn(match: Match, current_turn: int, direction: int, length: int):
+    match.current_player_index = (current_turn + direction) % length
 
 
 @db_session
-def update_match_play_card(match_id: int, card_id: int, color: str | None):
+def get_player_turn(match_id: int) -> str:
     match = Match[match_id]
-    card = Card[card_id]
 
-    card_type = card.card_type
-    current_turn = match.current_player_index
-    current_direction = match.turn_direction
+    players_ordered = list(match.players.order_by(lambda p: p.player_id))
+
+    current_player = players_ordered[match.current_player_index]
+
+    return current_player.name
+
+
+@db_session
+def apply_card_effect(match: Match, card: Card, color: str | None):
+    card.player = None
+    card.match_in_deck = None
+    card.pot = match.pot
+    card.pot.last_played_in_pot = card
     length = len(match.players)
 
-    if card_type == CardType.TAKE_TWO:
+    if card.stealer:
+        card.stealer = None
+
+    # Ajustar acumulador para TAKE_TWO o TAKE_FOUR_WILDCARD
+    if card.card_type == CardType.TAKE_TWO:
         match.pot.acumulator += 2
-        update_turn(match_id, current_turn, current_direction, length)
-
-    if card_type == CardType.TAKE_FOUR_WILDCARD:
+    elif card.card_type == CardType.TAKE_FOUR_WILDCARD:
         match.pot.acumulator += 4
-        match.pot.color = color
-        update_turn(match_id, current_turn, current_direction, length)
 
-    if card_type == CardType.WILDCARD:
+    # Configurar color para WILDCARD y TAKE_FOUR_WILDCARD
+    if card.card_type in [CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD]:
         match.pot.color = color
-        update_turn(match_id, current_turn, current_direction, length)
 
-    if card_type == CardType.REVERSE:
+    # Cambiar dirección para REVERSE
+    if card.card_type == CardType.REVERSE:
         match.turn_direction *= -1
-        update_turn(match_id, current_turn, current_direction * -1, length)
 
-    if card_type == CardType.JUMP:
-        update_turn(match_id, current_turn, current_direction * 2, length)
-
-    if card_type == CardType.NUMBER:
-        update_turn(match_id, current_turn, current_direction, length)
+    # Saltar el siguiente turno para JUMP
+    if card.card_type == CardType.JUMP:
+        update_turn(match, match.current_player_index, match.turn_direction * 2, length)
+    else:
+        update_turn(match, match.current_player_index, match.turn_direction, length)

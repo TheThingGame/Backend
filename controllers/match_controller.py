@@ -6,12 +6,10 @@ from database.models.models import Match
 from database.dao.match_dao import (
     create_new_match,
     update_joining_user_match,
-    get_match_by_name_and_user,
     get_all_matches,
-    get_match_by_code,
     update_executed_match,
     get_match_info,
-    get_match_by_id,
+    get_player_turn,
 )
 from database.dao.card_dao import card_db_to_dict
 from validators.match_validators import (
@@ -101,16 +99,17 @@ async def start_match(player_id: Annotated[int, Body(embed=True)], match_id: int
     with db_session:
         match = Match[match_id]
         pot = card_db_to_dict(match.pot.last_played_card)
+        turn = get_player_turn(match_id)
 
         # Avisamos a los jugadores que la partida inicio, le pasamos su mano, el pozo y el turno actual
-        for index, p in enumerate(match.players):
+        for p in match.players:
             hand = []
             for c in p.hand:
                 hand.append(card_db_to_dict(c))
 
             message_to_player = {
                 "action": "start",
-                "data": {"hand": hand, "pot": pot, "turn": match.current_player_index},
+                "data": {"hand": hand, "pot": pot, "turn": turn},
             }
             # Avisamos a cada jugador que la partida inicio, le pasamos su mano, la carta inicial del pozo y el turno actual
             await lobbys[match_id].send_personal_message(message_to_player, p.player_id)

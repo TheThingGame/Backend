@@ -34,7 +34,7 @@ class Card(db.Entity):
 
 class Pot(db.Entity):
     pot_id = PrimaryKey(int, auto=True)
-    acumulator = Optional(int)
+    acumulator = Optional(int, default=0)
     cards = Set(Card)
     color = Optional(CardColor)
     last_played_card = Optional(Card)
