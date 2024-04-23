@@ -118,18 +118,22 @@ def get_player_turn(match_id: int) -> str:
     match = Match[match_id]
 
     players_ordered = list(match.players.order_by(lambda p: p.player_id))
-
     current_player = players_ordered[match.current_player_index]
 
     return current_player.name
 
 
 @db_session
-def apply_card_effect(match: Match, card: Card, color: str | None):
+def apply_card_effect(match_id: int, card_id: int, color: str | None = None):
+    match = Match[match_id]
+    card = Card[card_id]
+    pot = match.pot
+
+    # Ahora la carta no pertenece al jugador sino al pozo
     card.player = None
     card.match_in_deck = None
-    card.pot = match.pot
-    card.pot.last_played_in_pot = card
+    pot.last_played_card = card
+    card.pot = pot
     length = len(match.players)
 
     if card.stealer:
@@ -149,7 +153,13 @@ def apply_card_effect(match: Match, card: Card, color: str | None):
     if card.card_type == CardType.REVERSE:
         match.turn_direction *= -1
 
-    # Saltar el siguiente turno para JUMP
+    if match.pot.color and card.card_type not in [
+        CardType.WILDCARD,
+        CardType.TAKE_FOUR_WILDCARD,
+    ]:
+        match.pot.color = None
+
+    # Saltar el siguiente turno
     if card.card_type == CardType.JUMP:
         update_turn(match, match.current_player_index, match.turn_direction * 2, length)
     else:

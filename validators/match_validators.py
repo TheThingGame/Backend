@@ -6,6 +6,7 @@ from database.dao.match_dao import (
     get_match_by_name_and_user,
     get_match_by_code,
     get_match_by_id,
+    get_player_turn,
 )
 from database.models.models import Match, Player
 from utils.match_utils import (
@@ -19,7 +20,7 @@ from utils.match_utils import (
     USER_ALREADY_JOINED,
 )
 
-from utils.player_utils import NOT_EXISTENT_PLAYER
+from utils.player_utils import NOT_EXISTENT_PLAYER, NOT_YOUR_TURN, NOT_A_PLAY_WAS_MADE
 
 
 def new_match_validator(new_match: NewMatch):
@@ -105,3 +106,25 @@ def follow_match_validator(match_id: int, player_id: int) -> bool:
         return False
 
     return True
+
+
+@db_session
+def pass_turn_validator(match_id: int, player_id: int):
+    # Chequeamos si la partida existe
+    match = get_match_by_id(match_id)
+    if not match:
+        raise NOT_EXISTENT_MATCH
+
+    # Chequeamos si el jugador existe
+    player = Player.get(player_id=player_id, match=match)
+    if not player:
+        raise NOT_EXISTENT_PLAYER
+
+    # Chequeamos si es el turno del jugador
+    current_turn = get_player_turn(match_id)
+    if current_turn != player.name:
+        raise NOT_YOUR_TURN
+
+    # Chequeamos si el jugador hizo una jugada antes de pasar el turno
+    if not player.stolen_card:
+        raise NOT_A_PLAY_WAS_MADE

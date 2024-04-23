@@ -1,4 +1,12 @@
-from pony.orm import *
+from pony.orm import (
+    Database,
+    PrimaryKey,
+    Required,
+    Optional,
+    Optional,
+    Set,
+    composite_key,
+)
 from enum import Enum
 
 db = Database()

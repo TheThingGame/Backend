@@ -2,7 +2,7 @@ import uuid
 from pony.orm import db_session
 from fastapi import APIRouter, status, WebSocket, WebSocketDisconnect, Body
 from typing import Annotated
-from database.models.models import Match
+from database.models.models import Match, Player
 from database.dao.match_dao import (
     create_new_match,
     update_joining_user_match,
@@ -10,6 +10,7 @@ from database.dao.match_dao import (
     update_executed_match,
     get_match_info,
     get_player_turn,
+    update_turn,
 )
 from database.dao.card_dao import card_db_to_dict
 from validators.match_validators import (
@@ -17,6 +18,7 @@ from validators.match_validators import (
     join_match_validator,
     start_match_validator,
     follow_match_validator,
+    pass_turn_validator,
 )
 from utils.match_utils import (
     INTERNAL_ERROR_CREATING_MATCH,
@@ -100,6 +102,7 @@ async def start_match(player_id: Annotated[int, Body(embed=True)], match_id: int
         match = Match[match_id]
         pot = card_db_to_dict(match.pot.last_played_card)
         turn = get_player_turn(match_id)
+        deck = [card_db_to_dict(c) for c in match.deck]
 
         # Avisamos a los jugadores que la partida inicio, le pasamos su mano, el pozo y el turno actual
         for p in match.players:
@@ -109,10 +112,35 @@ async def start_match(player_id: Annotated[int, Body(embed=True)], match_id: int
 
             message_to_player = {
                 "action": "start",
-                "data": {"hand": hand, "pot": pot, "turn": turn},
+                "data": {"hand": hand, "pot": pot, "deck": deck, "turn": turn},
             }
             # Avisamos a cada jugador que la partida inicio, le pasamos su mano, la carta inicial del pozo y el turno actual
             await lobbys[match_id].send_personal_message(message_to_player, p.player_id)
+    return True
+
+
+@match_controller.put("/pass-turn/{match_id}", status_code=status.HTTP_200_OK)
+async def pass_turn(match_id: int, player_id: Annotated[int, Body(embed=True)]):
+    pass_turn_validator(match_id, player_id)
+    with db_session:
+        player = Player[player_id]
+        match = Match[match_id]
+
+        player.stolen_card = None
+        update_turn(
+            match,
+            match.current_player_index,
+            match.turn_direction,
+            len(match.players),
+        )
+        player_turn = get_player_turn(match_id)
+
+        message_to_broadcast = {
+            "action": "PASS_TURN",
+            "turn": player_turn,
+        }
+        await lobbys[match_id].broadcast(message_to_broadcast)
+
     return True
 
 
