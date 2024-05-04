@@ -3,9 +3,8 @@ from typing import Annotated
 from pony.orm import db_session
 from validators.card_validators import play_card_validator, steal_card_validator
 from view_entities.card_view_entities import PlayCard
-from database.models.models import Match, Card, Player, CardType
+from database.models.models import Match, Player, CardType
 from database.dao.match_dao import get_player_turn, apply_card_effect, update_turn
-from database.dao.card_dao import card_db_to_dict, card_db_to_dict
 from utils.match_utils import lobbys
 
 
@@ -17,11 +16,12 @@ async def play_card(match_id: int, play_card_data: PlayCard):
     play_card_validator(
         match_id, play_card_data.player_id, play_card_data.card_id, play_card_data.color
     )
+    apply_card_effect(match_id, play_card_data.card_id, play_card_data.color)
 
     with db_session:
         match = Match[match_id]
         card = Card[play_card_data.card_id]
-        apply_card_effect(match_id, play_card_data.card_id, play_card_data.color)
+        player = Player[play_card_data.player_id]
         player_turn = get_player_turn(match_id)
 
         message_to_broadcast = {
@@ -42,6 +42,9 @@ async def steal_card(match_id: int, player_id: Annotated[int, Body(embed=True)])
         match = Match[match_id]
         player = Player[player_id]
         player_turn = get_player_turn(match_id)
+
+        # Calcular la cantidad de cartas a robar
+        # take = match.pot.acumulator if match.pot.acumulator > 0 else ""
 
         if match.pot.acumulator > 0:
             # Si hay cartas acumuladas por acciones anteriores
@@ -67,7 +70,6 @@ async def steal_card(match_id: int, player_id: Annotated[int, Body(embed=True)])
             await lobbys[match_id].send_personal_message(message_to_player, player_id)
 
             # Notificamos a todos los jugadores que se robaron cartas
-
             message_to_broadcast = {"action": "TAKE", "turn": player_turn}
             await lobbys[match_id].broadcast(message_to_broadcast)
             return

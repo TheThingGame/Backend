@@ -6,6 +6,12 @@ PLAYER_DB_EXCEPTION = HTTPException(
 )
 
 
+PLAYER_EXISTS = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="The player name is already in use.",
+)
+
+
 NOT_EXISTENT_PLAYER = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND, detail="The player doesn't exist."
 )

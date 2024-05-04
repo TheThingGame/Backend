@@ -1,8 +1,7 @@
-from database.models.models import Match, Player, Card
+from database.models.models import Match, Player
 from pony.orm import db_session
 from database.dao.match_dao import get_match_by_id, get_player_turn
 from database.dao.player_dao import get_player_by_id
-from utils.match_utils import NOT_EXISTENT_MATCH
 from utils.player_utils import NOT_EXISTENT_PLAYER, NOT_YOUR_TURN
 from utils.cards_utils import (
     INVALID_PLAYED_CARD,

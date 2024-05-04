@@ -1,98 +1,64 @@
 import re
 from pony.orm import db_session, ObjectNotFound
-from fastapi import HTTPException, status, WebSocket
+from fastapi import HTTPException, status, WebSocket, Body
 from view_entities.match_view_entities import NewMatch, JoinMatch, MatchID
 from database.dao.match_dao import (
-    get_match_by_name_and_user,
     get_match_by_code,
     get_match_by_id,
     get_player_turn,
 )
 from database.models.models import Match, Player
-from utils.match_utils import (
-    NOT_EXISTENT_MATCH,
-    INVALID_MATCH_CODE,
-    INVALID_PLAYER_NAME_LENGTH,
-    MATCH_ALREADY_STARTED,
-    MATCH_FULL,
-    NOT_CREATOR,
-    NOT_ENOUGH_PLAYERS,
-    USER_ALREADY_JOINED,
-)
 
 from utils.player_utils import NOT_EXISTENT_PLAYER, NOT_YOUR_TURN, NOT_A_PLAY_WAS_MADE
+from exceptions import match_exceptions
+from . import player_validators
+from typing import Annotated
 
 
-def new_match_validator(new_match: NewMatch):
-    match = get_match_by_name_and_user(new_match.name, new_match.creator_player)
-    errors = []
+def match_name_validator(match_name: str):
+    if len(match_name) < 3 or len(match_name) > 16:
+        raise match_exceptions.INVALID_MATCH_LENGTH
 
-    if len(new_match.name) < 3 or len(new_match.name) > 16:
-        errors.append("The match name has to have between 3 and 16 characters.")
 
-    if match:
-        errors.append(
-            "A match with the same name or a player with the same name already exists."
-        )
-
-    if errors:
-        detail = "\n".join(errors)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+def new_match_validator(match: NewMatch):
+    match_name_validator(match.match_name)
+    player_validators.player_name_validator(match.creator_name)
 
 
 @db_session
-def join_match_validator(join_match: JoinMatch) -> int:
-    # Validamos los datos del cuerpo de solicitud
-    if not re.match(r"^[a-z0-9]{3}$", join_match.code):
-        raise INVALID_MATCH_CODE
+def join_match_validator(join: JoinMatch):
+    # Chequeamos si el nombre es correcto
+    player_validators.player_name_validator(join.player_name)
 
-    if len(join_match.player_name) < 3 or len(join_match.player_name) > 16:
-        raise INVALID_PLAYER_NAME_LENGTH
 
-    # Chequeamos si la partida existe
-    match = get_match_by_code(join_match.code)
-    if not match:
-        raise NOT_EXISTENT_MATCH
+@db_session
+def match_exists_validator(match_id: int):
+    try:
+        Match[match_id]
+    except ObjectNotFound:
+        raise match_exceptions.NOT_EXISTENT_MATCH
 
-    # Chequeamos si la partida esta iniciada
+
+@db_session
+def match_started_validator(match_id: int):
+    match = Match[match_id]
     if match.started:
-        raise MATCH_ALREADY_STARTED
-
-    # Chequeamos si la partida esta llena
-    if match.max_players == len(match.players):
-        raise MATCH_FULL
-
-    # Chequeamos si el nombre de jugador existe en la partida
-    players_in_match = [p.name for p in match.players]
-    if join_match.player_name in players_in_match:
-        raise USER_ALREADY_JOINED
-
-    return match.match_id
+        raise match_exceptions.MATCH_ALREADY_STARTED
 
 
 @db_session
-def start_match_validator(player_id: int, match_id: int):
+def start_match_validator(player_id: Annotated[int, Body(embed=True)], match_id: int):
     # Comprobar si la partida existe
-    match = get_match_by_id(match_id)
-    if not match:
-        raise NOT_EXISTENT_MATCH
+    match_exists_validator(match_id)
 
     # Comprobar si la partida está iniciada
-    if match.started:
-        raise MATCH_ALREADY_STARTED
+    match_started_validator(match_id)
 
     # Comprobar si el jugador existe
-    player = Player.get(player_id=player_id)
-    if not player:
-        raise NOT_EXISTENT_PLAYER
+    player_validators.player_exists_validator(player_id)
 
     # Comprobar si el que inicia la partida es el creador
-    if not player.creator_match:
-        raise NOT_CREATOR
-
-    # Comprobar si la cantidad de jugadores es mayor al mínimo
-    if len(match.players) < match.min_players:
-        raise NOT_ENOUGH_PLAYERS
+    player_validators.is_creator_validator(player_id)
 
 
 @db_session

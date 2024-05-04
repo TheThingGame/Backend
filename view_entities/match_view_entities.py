@@ -1,19 +1,19 @@
 from fastapi import HTTPException, status
 from pydantic import BaseModel, field_validator
 from pydantic_core import PydanticCustomError
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, UUID4
 from typing import List
 from re import match
 
 
 class NewMatch(BaseModel):
-    name: str
-    creator_player: str
+    match_name: str
+    creator_name: str
 
 
 class JoinMatch(BaseModel):
     player_name: str
-    code: str
+    code: UUID4
 
 
 class MatchID(BaseModel):
@@ -28,8 +28,8 @@ class MatchInfo(BaseModel):
     match_id: int
     player_id: int
     name: str
-    code: str
-    creator_player: str
+    code: UUID4
+    creator: str
     min_players: int
     max_players: int
     started: bool
