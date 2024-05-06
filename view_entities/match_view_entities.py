@@ -38,3 +38,8 @@ class MatchInfo(BaseModel):
 
 class StartMatch(BaseModel):
     creator_player: str
+
+
+class PlayCard(BaseModel):
+    player_id: int
+    card_id: int

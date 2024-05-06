@@ -25,3 +25,24 @@ NOT_EXISTS_PLAYER = HTTPException(
 NOT_CREATOR = HTTPException(
     status_code=status.HTTP_409_CONFLICT, detail="Only the creator can start the match."
 )
+
+CARD_NOT_FOUND = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND, detail="The card does not exist."
+)
+
+UNPLAYED_STOLEN_CARD = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="You must play the card you just stole.",
+)
+
+
+INVALID_RESPONSE_CARD = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="Invalid response card.",
+)
+
+
+INVALID_PLAYED_CARD = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="The played card is not valid.",
+)

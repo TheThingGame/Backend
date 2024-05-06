@@ -70,8 +70,8 @@ class Match(db.Entity):
         return pot, deck
 
     def start(self):
-        # if self.min_players > self.num_players or self.max_players < self.num_players:
-        # raise NOT_ENOUGH_PLAYERS
+        if self.min_players > self.num_players or self.max_players < self.num_players:
+            raise NOT_ENOUGH_PLAYERS
 
         # Mezclamos las cartas
         self.shuffle_cards
@@ -85,17 +85,19 @@ class Match(db.Entity):
         # Damos un orden a los jugadores
         ordered_players = [player.name for player in self.players]
 
+        self.started = True
+
         state = MatchState(
             match=self, pot=pot, deck=deck, ordered_players=ordered_players
         )
-        state.apply_action_card_penalty
 
-        self.started = True
+        # Si la carta es de accion penalizamos a un jugador
+        state.apply_action_card_penalty
 
 
 class MatchState(db.Entity):
-    __turn = 0
-
+    current_turn = Required(int, default=0)
+    prev_turn = Required(int, default=0)
     ordered_players = Required(StrArray)
     acumulator = Required(int, default=0)
     color = Optional(CardColor)
@@ -109,35 +111,57 @@ class MatchState(db.Entity):
         return self.pot[-1]
 
     @property
+    def steal_pot(self):
+        top_card = self.pot.pop()
+        new_deck = self.pot[:]
+        random.shuffle(new_deck)
+        self.pot = [top_card]
+        return new_deck
+
+    @property
     def apply_action_card_penalty(self):
         card_type = CARDS[self.top_card]["type"]
 
         if card_type == CardType.REVERSE:
             self.direction = self.reverse()
         if card_type == CardType.JUMP:
-            self.advance_turn(2)
+            self.next_turn(2)
+
         if card_type == CardType.TAKE_TWO:
-            draw_cards = self.draw_cards(2, self.turn())
-            self.advance_turn(1)
+            self.acumulator += 2
+            self.next_turn(1)
 
-    def turn(self):
-        return self.ordered_players[self.__turn]
+    @property
+    def get_prev_turn(self):
+        return self.ordered_players[self.prev_turn]
 
-    def advance_turn(self, steps: int):
-        self.__turn = (self.__turn + (self.direction * steps)) % len(
-            self.ordered_players
-        )
+    @property
+    def get_current_turn(self):
+        return self.ordered_players[self.current_turn]
 
+    @property
     def reverse(self):
         self.direction = (
             Direction.RIGHT if self.direction == Direction.RIGHT else Direction.LEFT
         )
 
-    def draw_cards(self, quantity: int, player_name: str):
-        draw_cards = [self.deck.pop() for _ in range(quantity)]
-        player = Player.get(name=player_name)
-        player.hand.extend(draw_cards)
-        return draw_cards
+    def next_turn(self, steps: int = 1):
+        self.prev_turn = self.current_turn
+        self.current_turn = self.current_turn + (self.direction * steps) % len(
+            self.ordered_players
+        )
+
+    def steal(self):
+        if len(self.deck) < 1 or len(self.deck) < self.acumulator:
+            self.deck = self.steal_pot
+
+        quantity = max(self.acumulator, 1)
+
+        if quantity > 1:
+            self.acumulator = 0
+            self.next_turn(1)
+
+        return [self.deck.pop() for _ in range(quantity)]
 
 
 db.bind(provider="sqlite", filename="database.sqlite", create_db=True)

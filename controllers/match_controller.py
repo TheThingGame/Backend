@@ -10,6 +10,8 @@ from database.dao.match_dao import (
     join_update,
     get_player_turn,
     update_turn,
+    play_card_update,
+    steal_card_update,
 )
 
 from validators.match_validators import (
@@ -18,14 +20,16 @@ from validators.match_validators import (
     start_match_validator,
     follow_match_validator,
     pass_turn_validator,
+    play_card_validator,
 )
 from utils.match_utils import (
     LobbyManager,
     lobbys,
 )
-from view_entities.match_view_entities import NewMatch, JoinMatch, MatchInfo
+from view_entities.match_view_entities import NewMatch, JoinMatch, MatchInfo, PlayCard
 from deserializers.match_deserializers import match_deserializer, cards_deserializer
 from websocket import messages, actions
+from database.models.models import CARDS, CardType
 
 match_controller = APIRouter()
 
@@ -74,22 +78,28 @@ async def follow_lobby(websocket: WebSocket, match_id: int, player_id: int):
 async def start(
     player_id: Annotated[int, Body(embed=True)],
     match_id: int,
+    _=Depends(start_match_validator),
 ):
     # Repartimos las cartas, creamos el mazo y pozo.
-
     with db_session:
         match = Match[match_id]
         match.start()
 
+    # Enviamos un mensaje a cada jugador con su mano, carta inicial y turno actual
     await actions.start(match_id)
 
-    # print("MESSAGE:", message)
-    # print("CURRENT TURN:", match.state.turn())
-    # if message["action"] == CardType.TAKE_TWO:
-    # cards = message.pop("cards")
-    #  message = {"action": "TAKE", "cards": cards}
-    #   await lobbys[match_id].send_personal_message(message, message["affected"])
-    # await lobbys[match_id].broadcast(message)
+    return True
+
+
+@match_controller.put("/play-card/{match_id}", status_code=status.HTTP_200_OK)
+async def play_card(match_id: int, payload: PlayCard, _=Depends(play_card_validator)):
+    card = cards_deserializer([payload.card_id])[0]
+
+    # Actualizamos la bd en base a la carta jugada
+    play_card_update(match_id, card)
+
+    # Enviamos mensajes a los jugadores con la carta jugada
+    await actions.play_card(match_id, card)
 
     return True
 
@@ -119,7 +129,18 @@ async def pass_turn(match_id: int, player_id: Annotated[int, Body(embed=True)]):
     return True
 
 
-@match_controller.get("/matches/")
-async def get_matches():
-    matches = get_all_matches()
-    return matches
+@match_controller.put("/steal-card/{match_id}", status_code=status.HTTP_200_OK)
+async def steal_card(match_id: int, player_id: Annotated[int, Body(embed=True)]):
+    steal_card_validator(match_id, player_id)
+
+    message = steal_card_update(match_id, player_id)
+    if message["action"] == "TAKE":
+        await lobbys[match_id].send_personal_message(message, message["player"])
+        del message["cards"]
+        await lobbys[match_id].broadcast(message)
+    else:
+        await lobbys[match_id].send_personal_message(message, message["player"])
+        del message["card"]
+        await lobbys[match_id].broadcast(message)
+
+    return True

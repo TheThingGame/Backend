@@ -41,3 +41,7 @@ NOT_ENOUGH_PLAYERS = HTTPException(
     status_code=status.HTTP_409_CONFLICT,
     detail="The minimum amount of players hasn't been reached.",
 )
+
+NOT_YOUR_TURN = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN, detail="It's not your turn."
+)

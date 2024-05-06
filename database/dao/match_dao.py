@@ -77,53 +77,58 @@ def get_player_turn(match_id: int) -> str:
 
 
 @db_session
-def apply_card_effect(match_id: int, card_id: int, color: str | None = None):
-    match = Match[match_id]
-    card = Card[card_id]
-    pot = match.pot
+def play_card_update(match_id: int, player_id: int, card: dict):
+    state = Match[match_id].state
+    player = Player[player_id]
+    card_type = card["type"]
 
     # Ahora la carta no pertenece al jugador sino al pozo
-    card.player = None
-    card.match_in_deck = None
-    pot.last_played_card = card
-    card.pot = pot
-    length = len(match.players)
+    state.pot.append(card["id"])
+    player.hand.remove(card["id"])
 
-    if card.stealer:
-        card.stealer = None
+    # El jugador tiro la carta robada, ajustamos el acumulador
+    if state.acumulator == 1:
+        state.acumulator = 0
 
-    # Ajustar acumulador para TAKE_TWO o TAKE_FOUR_WILDCARD
-    if card.card_type == CardType.TAKE_TWO:
-        match.pot.acumulator += 2
-    elif card.card_type == CardType.TAKE_FOUR_WILDCARD:
-        match.pot.acumulator += 4
+    if state.color:
+        state.color = None
 
-    # Configurar color para WILDCARD y TAKE_FOUR_WILDCARD
-    if card.card_type in [CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD]:
-        match.pot.color = color
+    # Ajustamos acumulador para TAKE_TWO o TAKE_FOUR_WILDCARD
+    if card_type == CardType.TAKE_TWO:
+        state.acumulator += 2
+        # Retornamos porque el jugador tiene que cambiar de color, por lo tanto sigue teniendo el turno
+        return
+    elif card_type == CardType.TAKE_FOUR_WILDCARD:
+        state.acumulator += 4
+        # Retornamos porque el jugador tiene que cambiar de color, por lo tanto sigue teniendo el turno
+        return
 
     # Cambiar dirección para REVERSE
-    if card.card_type == CardType.REVERSE:
-        match.turn_direction *= -1
+    if card_type == CardType.REVERSE:
+        state.reverse
 
-    if match.pot.color and card.card_type not in [
-        CardType.WILDCARD,
-        CardType.TAKE_FOUR_WILDCARD,
-    ]:
-        match.pot.color = None
-
-    # Saltar el siguiente turno
-    if card.card_type == CardType.JUMP:
-        update_turn(match, match.current_player_index, match.turn_direction * 2, length)
-    elif card.card_type == CardType.TAKE_FOUR_WILDCARD:
-        next_turn = match.current_player_index + match.turn_direction % len(
-            match.players
-        )
-        next_player_hand = list(match.players)[next_turn].hand
-
-        if CardType.TAKE_FOUR_WILDCARD in [c.card_type for c in next_player_hand]:
-            pass
-
-        pass
+    # Pasamoss el turno
+    if card_type == CardType.JUMP:
+        state.next_turn(2)
     else:
-        update_turn(match, match.current_player_index, match.turn_direction, length)
+        state.next_turn(1)
+
+
+@db_session
+async def steal_card_update(match_id: int, player_id: int) -> dict:
+    state = Match[match_id].state
+    player = Player[player_id]
+    steal_cards = state.steal()
+    player.hand.extend(steal_cards)
+    cards = cards_deserializer(steal_cards)
+
+    # ----------PODRIA SACAR ESTE CODIGO Y PONERLO EN LA FUNCION QUE MANEJE LOS MENSAJES......
+    if state.acumulator > 0:
+        return {
+            "action": "TAKE",
+            "player": state.get_prev_turn,
+            "turn": state.get_current_turn,
+            "cards": cards,
+        }
+
+    return {"action": "STEAL", "player": state.get_current_turn, "card": cards[0]}
