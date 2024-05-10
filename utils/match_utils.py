@@ -40,9 +40,10 @@ class LobbyManager:
     async def send_personal_message(self, message: dict, player_name: str):
         await self.active_connections[player_name].send_text(json.dumps(message))
 
-    async def broadcast(self, message: dict):
-        for websocket in self.active_connections.values():
-            await websocket.send_text(json.dumps(message))
+    async def broadcast(self, message: dict, player_name_ignore: str | None = None):
+        for player_name, websocket in self.active_connections.items():
+            if player_name != player_name_ignore:
+                await websocket.send_text(json.dumps(message))
 
 
 # {match_id:LobbyManager}

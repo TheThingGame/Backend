@@ -1,19 +1,16 @@
 import re
 from pony.orm import db_session, ObjectNotFound
 from fastapi import HTTPException, status, WebSocket, Body
-from view_entities.match_view_entities import NewMatch, JoinMatch, MatchID
-from database.dao.match_dao import (
-    get_match_by_code,
-    get_match_by_id,
-    get_player_turn,
-)
+from view_entities.match_view_entities import NewMatch, JoinMatch, ChangeColor
+from database.dao.match_dao import get_match_by_id
 from database.models.models import Match, Player
-
+from database.models.enums import CardColor, CardType
 from utils.player_utils import NOT_EXISTENT_PLAYER, NOT_A_PLAY_WAS_MADE
 from exceptions import match_exceptions, player_exceptions
 from . import player_validators
 from typing import Annotated
 from view_entities.card_view_entities import PlayCard
+from deserializers.match_deserializers import cards_deserializer
 
 
 def match_name_validator(match_name: str):
@@ -51,9 +48,17 @@ def match_started_validator(match_id: int):
 def turn_validator(match_id: int, player_id: int):
     current_turn = Match[match_id].state.get_current_turn
     player_name = Player[player_id].name
-
+    print("CURRENT TURN VALIDATOR:", current_turn)
+    print("PLAYER NAME  TURN VALIDATOR:", player_name)
     if current_turn != player_name:
         raise match_exceptions.NOT_YOUR_TURN
+
+
+@db_session
+def player_in_match_validator(match_id: int, player_id: int):
+    player = Player[player_id]
+    if player.name not in Match[match_id].state.ordered_players:
+        raise player_exceptions.PLAYER_NOT_IN_MATCH
 
 
 @db_session
@@ -61,6 +66,14 @@ def card_in_hand_validator(player_id: int, card_id: int):
     hand = Player[player_id].hand
     if card_id not in hand:
         raise player_exceptions.CARD_NOT_FOUND
+
+
+@db_session
+def color_validator(match_id: int):
+    state = Match[match_id].state
+    # El jugador primero debe hacer el cambio de color
+    if state.color and state.color in [CardColor.WILCARD, CardColor.START]:
+        raise player_exceptions.NO_COLOR_CHOSEN_BEFORE_PLAY
 
 
 @db_session
@@ -86,9 +99,23 @@ def follow_match_validator(match_id: int, player_id: int) -> bool:
 
     player = Player.get(player_id=player_id, match=match)
     if not player:
-        return False
+        return Falses
 
     return True
+
+
+def is_valid_card_for_play(card: dict, pot: dict, color: CardColor | None) -> bool:
+
+    if card["type"] in [CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD]:
+        return True
+
+    if color:
+        return card["color"] == color
+
+    if card["type"] == CardType.NUMBER:
+        return card["color"] == pot["color"] or card["number"] == pot["number"]
+
+    return card["type"] in [CardType.TAKE_TWO, CardType.REVERSE, CardType.JUMP]
 
 
 @db_session
@@ -99,65 +126,96 @@ def play_card_validator(match_id: int, payload: PlayCard):
     # Chequeamos si el jugador existe
     player_validators.player_exists_validator(payload.player_id)
 
+    # Chequeamos si el jugador pertenece a la partida
+    player_in_match_validator(match_id, payload.player_id)
+
     # Chequeamos si es el turno del jugador
     turn_validator(match_id, payload.player_id)
+
+    # Chequeamos si se selecciono un color antes jugar una carta
+    color_validator(match_id)
 
     # Chequeamos si la carta existe en la mano del jugador
     card_in_hand_validator(payload.player_id, payload.card_id)
 
-    state = Match[match_id].state
-    card = cards_deserializer[payload.card_id][0]
-    card_type = card["type"]
-    pot = cards_deserializer[state.top_card][0]
-    pot_type = pot["type"]
+    # Chequeamos si la carta que el jugador quiere jugar es la ultima carta que robo
+    if state.acumulator == 1:
+        player = Player[payload.player_id]
+        last_card_played = player.hand[-1]["id"]
 
-    # Chequeamos si podemos responder a TAKE_TWO o TAKE_FOUR_WILDCARD
-    if state.acumulator > 0:
-
-        if card_type in [CardType.TAKE_FOUR_WILDCARD, pot_type]:
-            return
-
-        # Si la carta tirada es distinta a la ultima del significa que no estas tirando la carta que corresponde
-        if state.acumulator == 1 and payload.card_id in Player[player_id].hand:
-            return
-        else:
+        if payload.card_id != last_card_played:
             raise player_exceptions.UNPLAYED_STOLEN_CARD
 
-        raise player_exceptions.INVALID_RESPONSE_CARD
+    card = cards_deserializer([payload.card_id])[0]
+    pot = cards_deserializer([state.top_card])[0]
 
-    # ----- Chequeamos si la carta puede ser lanzada al pozo ------
-
-    # Chequeamos si hubo cambio de color
-    if pot.color and (card.color == pot.color):
-        return
-
-    if card_type == CardType.NUMBER:
-        if card.number == pot.number or card.color == pot.color:
-            return
+    # Chequeamos si la carta puede ser tirada al pozo
+    if not is_valid_card_for_play(card, pot, state.color):
         raise player_exceptions.INVALID_PLAYED_CARD
-
-    if card.color == pot.color or card_type == pot_type:
-        return
-    raise player_exceptions.INVALID_PLAYED_CARD
 
 
 @db_session
-def pass_turn_validator(match_id: int, player_id: int):
+def steal_card_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
     # Chequeamos si la partida existe
-    match = get_match_by_id(match_id)
-    if not match:
-        raise NOT_EXISTENT_MATCH
+    match_exists_validator(match_id)
 
     # Chequeamos si el jugador existe
-    player = Player.get(player_id=player_id, match=match)
-    if not player:
-        raise NOT_EXISTENT_PLAYER
+    player_validators.player_exists_validator(player_id)
+
+    # Chequeamos si el jugador pertenece a la partida
+    player_in_match_validator(match_id, player_id)
 
     # Chequeamos si es el turno del jugador
-    current_turn = get_player_turn(match_id)
-    if current_turn != player.name:
-        raise NOT_YOUR_TURN
+    turn_validator(match_id, player_id)
+
+    # Chequeamos si se selecciono un color antes de robar una carta
+    color_validator(match_id)
+
+    # Chequeamos que el jugador no vuelva a robar otra carta si ya lo hizo
+    if Match[match_id].state.acumulator == 1:
+        raise player_exceptions.ALREADY_TOOK_CARD
+
+
+@db_session
+def next_turn_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
+    # Chequeamos si la partida existe
+    match_exists_validator(match_id)
+
+    # Chequeamos si el jugador existe
+    player_validators.player_exists_validator(player_id)
+
+    # Chequeamos si el jugador pertenece a la partida
+    player_in_match_validator(match_id, player_id)
+
+    # Chequeamos si es el turno del jugador
+    turn_validator(match_id, player_id)
+
+    # Chequeamos si se selecciono un color antes de pasar turno
+    color_validator(match_id)
 
     # Chequeamos si el jugador hizo una jugada antes de pasar el turno
-    if not player.stolen_card:
-        raise NOT_A_PLAY_WAS_MADE
+    if Match[match_id].state.acumulator == 0:
+        raise player_exceptions.NOT_A_PLAY_WAS_MADE
+
+
+@db_session
+def change_color_validator(match_id: int, payload: ChangeColor):
+    # Chequeamos si la partida existe
+    match_exists_validator(match_id)
+
+    # Chequeamos si el jugador existe
+    player_validators.player_exists_validator(payload.player_id)
+
+    # Chequeamos si el jugador pertenece a la partida
+    player_in_match_validator(match_id, player_id)
+
+    # Chequeamos si es el turno del jugador
+    turn_validator(match_id, payload.player_id)
+
+    # Chequear si el color es valido
+    if color not in CardColor.__members__.values():
+        raise player_exceptions.INVALID_COLOR
+
+    # Chequear si ya hubo cambio de color
+    if Match[match_id].state.color:
+        raise player_exceptions.INVALID_COLOR_CHANGE_EXCEPTION

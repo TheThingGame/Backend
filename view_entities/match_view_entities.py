@@ -4,6 +4,7 @@ from pydantic_core import PydanticCustomError
 from pydantic import BaseModel, UUID4
 from typing import List
 from re import match
+from database.models.enums import CardColor
 
 
 class NewMatch(BaseModel):
@@ -14,10 +15,6 @@ class NewMatch(BaseModel):
 class JoinMatch(BaseModel):
     player_name: str
     code: UUID4
-
-
-class MatchID(BaseModel):
-    match_id: int
 
 
 class Player(BaseModel):
@@ -43,3 +40,8 @@ class StartMatch(BaseModel):
 class PlayCard(BaseModel):
     player_id: int
     card_id: int
+
+
+class ChangeColor(BaseModel):
+    player_id: int
+    color: CardColor

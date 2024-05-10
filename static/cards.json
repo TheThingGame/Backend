@@ -533,168 +533,168 @@
     },
     {
         "id": 76,
-        "color": null,
+        "color": "BLUE",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 77,
-        "color": null,
+        "color": "BLUE",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 78,
-        "color": null,
+        "color": "RED",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 79,
-        "color": null,
+        "color": "RED",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 80,
-        "color": null,
+        "color": "YELLOW",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 81,
-        "color": null,
+        "color": "YELLOW",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 82,
-        "color": null,
+        "color": "GREEN",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 83,
-        "color": null,
+        "color": "GREEN",
         "number": null,
         "type": "TAKE_TWO",
         "value": 20
     },
     {
         "id": 84,
-        "color": null,
+        "color": "BLUE",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 85,
-        "color": null,
+        "color": "BLUE",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 86,
-        "color": null,
+        "color": "RED",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 87,
-        "color": null,
+        "color": "RED",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 88,
-        "color": null,
+        "color": "YELLOW",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 89,
-        "color": null,
+        "color": "YELLOW",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 90,
-        "color": null,
+        "color": "GREEN",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 91,
-        "color": null,
+        "color": "GREEN",
         "number": null,
         "type": "REVERSE",
         "value": 20
     },
     {
         "id": 92,
-        "color": null,
+        "color": "BLUE",
         "number": null,
         "type": "JUMP",
         "value": 20
     },
     {
         "id": 93,
-        "color": null,
+        "color": "BLUE",
         "number": null,
         "type": "JUMP",
         "value": 20
     },
     {
         "id": 94,
-        "color": null,
+        "color": "RED",
         "number": null,
         "type": "JUMP",
         "value": 20
     },
     {
         "id": 95,
-        "color": null,
+        "color": "RED",
         "number": null,
         "type": "JUMP",
         "value": 20
     },
     {
         "id": 96,
-        "color": null,
+        "color": "YELLOW",
         "number": null,
         "type": "JUMP",
         "value": 20
     },
     {
         "id": 97,
-        "color": null,
+        "color": "YELLOW",
         "number": null,
         "type": "JUMP",
         "value": 20
     },
     {
         "id": 98,
-        "color": null,
+        "color": "GREEN",
         "number": null,
         "type": "JUMP",
         "value": 20
     },
     {
         "id": 99,
-        "color": null,
+        "color": "GREEN",
         "number": null,
         "type": "JUMP",
         "value": 20

@@ -21,6 +21,10 @@ NOT_EXISTS_PLAYER = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND, detail="The player doesn't exist."
 )
 
+PLAYER_NOT_IN_MATCH = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND, detail="The player is not in the match."
+)
+
 
 NOT_CREATOR = HTTPException(
     status_code=status.HTTP_409_CONFLICT, detail="Only the creator can start the match."
@@ -45,4 +49,26 @@ INVALID_RESPONSE_CARD = HTTPException(
 INVALID_PLAYED_CARD = HTTPException(
     status_code=status.HTTP_409_CONFLICT,
     detail="The played card is not valid.",
+)
+
+
+ALREADY_TOOK_CARD = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="The player has already taken a card from the deck and cannot do so again.",
+)
+
+INVALID_COLOR_CHANGE_EXCEPTION = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="You must play a Wildcard or Take Four Wildcard to change the color.",
+)
+
+INVALID_COLOR = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="You must play a card of the selected color.",
+)
+
+
+NO_COLOR_CHOSEN_BEFORE_PLAY = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="You must choose a color before making a play.",
 )

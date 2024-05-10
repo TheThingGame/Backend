@@ -8,25 +8,30 @@ from database.dao.match_dao import (
     create_match_or_400,
     create_new_match,
     join_update,
-    get_player_turn,
-    update_turn,
     play_card_update,
     steal_card_update,
 )
-
 from validators.match_validators import (
     new_match_validator,
     join_match_validator,
     start_match_validator,
     follow_match_validator,
-    pass_turn_validator,
+    next_turn_validator,
     play_card_validator,
+    steal_card_validator,
+    change_color_validator,
 )
 from utils.match_utils import (
     LobbyManager,
     lobbys,
 )
-from view_entities.match_view_entities import NewMatch, JoinMatch, MatchInfo, PlayCard
+from view_entities.match_view_entities import (
+    NewMatch,
+    JoinMatch,
+    MatchInfo,
+    PlayCard,
+    ChangeColor,
+)
 from deserializers.match_deserializers import match_deserializer, cards_deserializer
 from websocket import messages, actions
 from database.models.models import CARDS, CardType
@@ -94,9 +99,11 @@ async def start(
 @match_controller.put("/play-card/{match_id}", status_code=status.HTTP_200_OK)
 async def play_card(match_id: int, payload: PlayCard, _=Depends(play_card_validator)):
     card = cards_deserializer([payload.card_id])[0]
-
     # Actualizamos la bd en base a la carta jugada
-    play_card_update(match_id, card)
+    cards = play_card_update(match_id, payload.player_id, card)
+    # Si hay cartas significa que el jugador no canto 'UNO'
+    if cards:
+        actions.uno(match_id, cards)
 
     # Enviamos mensajes a los jugadores con la carta jugada
     await actions.play_card(match_id, card)
@@ -104,43 +111,50 @@ async def play_card(match_id: int, payload: PlayCard, _=Depends(play_card_valida
     return True
 
 
-@match_controller.put("/pass-turn/{match_id}", status_code=status.HTTP_200_OK)
-async def pass_turn(match_id: int, player_id: Annotated[int, Body(embed=True)]):
-    pass_turn_validator(match_id, player_id)
-    with db_session:
-        player = Player[player_id]
-        match = Match[match_id]
+@match_controller.put("/steal-card/{match_id}", status_code=status.HTTP_200_OK)
+async def steal_card(
+    match_id: int,
+    player_id: Annotated[int, Body(embed=True)],
+    _=Depends(steal_card_validator),
+):
+    # Actualizamos la bd con la carta robada
+    cards = steal_card_update(match_id, player_id)
 
-        player.stolen_card = None
-        update_turn(
-            match,
-            match.current_player_index,
-            match.turn_direction,
-            len(match.players),
-        )
-        player_turn = get_player_turn(match_id)
-
-        message_to_broadcast = {
-            "action": "PASS_TURN",
-            "turn": player_turn,
-        }
-        await lobbys[match_id].broadcast(message_to_broadcast)
+    # Avisamos que se robo una carta
+    await actions.steal_card(match_id, cards)
 
     return True
 
 
-@match_controller.put("/steal-card/{match_id}", status_code=status.HTTP_200_OK)
-async def steal_card(match_id: int, player_id: Annotated[int, Body(embed=True)]):
-    steal_card_validator(match_id, player_id)
+@match_controller.put("/next-turn/{match_id}", status_code=status.HTTP_200_OK)
+async def next_turn(
+    match_id: int,
+    player_id: Annotated[int, Body(embed=True)],
+    _=Depends(next_turn_validator),
+):
+    with db_session:
+        state = Match[match_id].state.next_turn(1)
+        state.acumulator = 0
 
-    message = steal_card_update(match_id, player_id)
-    if message["action"] == "TAKE":
-        await lobbys[match_id].send_personal_message(message, message["player"])
-        del message["cards"]
-        await lobbys[match_id].broadcast(message)
-    else:
-        await lobbys[match_id].send_personal_message(message, message["player"])
-        del message["card"]
-        await lobbys[match_id].broadcast(message)
+    await actions.next_turn(match_id)
+
+    return True
+
+
+@match_controller.put("/change-color/{match_id}", status_code=status.HTTP_200_OK)
+async def change_color(
+    match_id: int,
+    payload: ChangeColor,
+    _=Depends(change_color_validator),
+):
+    with db_session:
+        # Para el caso inicial no deberia pasar el turno
+        # ACA HAY QUE HACER UN CAMBIO
+        if state.color == CardColor.WILDCARD:
+            state = Match[match_id].state.next_turn(1)
+        state.color = payload.color
+
+    # Avisamos a los jugadores del cambio de color
+    await actions.change_color(match_id, payload.color)
 
     return True

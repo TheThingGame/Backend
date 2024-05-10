@@ -25,6 +25,7 @@ class Player(db.Entity):
     player_id = PrimaryKey(int, auto=True)
     name = Required(str, autostrip=True, unique=True)
     hand = Optional(IntArray)
+    uno = Required(bool, default=False)
     match = Optional("Match", reverse="players")
     creator = Optional("Match", reverse="creator")
 
@@ -65,7 +66,8 @@ class Match(db.Entity):
         while self.__randomized_cards[-1]["type"] == CardType.TAKE_FOUR_WILDCARD:
             random.shuffle(self.__randomized_cards)
 
-        pot = [self.__randomized_cards.pop()["id"]]
+        # pot = [self.__randomized_cards.pop()["id"]]
+        pot = [100]
         deck = [card["id"] for card in self.__randomized_cards]
         return pot, deck
 
@@ -103,6 +105,7 @@ class MatchState(db.Entity):
     color = Optional(CardColor)
     direction = Required(Direction, default=Direction.RIGHT)
     match = Required(Match)
+    winner = Optional(str)
     deck = Required(IntArray)
     pot = Required(IntArray)
 
@@ -125,11 +128,17 @@ class MatchState(db.Entity):
         if card_type == CardType.REVERSE:
             self.direction = self.reverse()
         if card_type == CardType.JUMP:
-            self.next_turn(2)
+            print("BEFORE CURRENT TURN, NEXT:", self.get_current_turn)
+            print("BEFORE PREV TURN, NEXT:", self.get_prev_turn)
+            self.next_turn(1)
+            print("AFTER CURRENT TURN, NEXT:", self.get_current_turn)
+            print("AFTER PREV TURN, NEXT:", self.get_prev_turn)
 
         if card_type == CardType.TAKE_TWO:
             self.acumulator += 2
             self.next_turn(1)
+        if card_type == CardType.WILDCARD:
+            self.color = CardColor.START
 
     @property
     def get_prev_turn(self):
@@ -147,9 +156,11 @@ class MatchState(db.Entity):
 
     def next_turn(self, steps: int = 1):
         self.prev_turn = self.current_turn
-        self.current_turn = self.current_turn + (self.direction * steps) % len(
+        self.current_turn = (self.current_turn + (self.direction * steps)) % len(
             self.ordered_players
         )
+        print("CURRENT TURN, NEXT:", self.get_current_turn)
+        print("PREV TURN, NEXT:", self.get_prev_turn)
 
     def steal(self):
         if len(self.deck) < 1 or len(self.deck) < self.acumulator:
@@ -160,6 +171,8 @@ class MatchState(db.Entity):
         if quantity > 1:
             self.acumulator = 0
             self.next_turn(1)
+        else:
+            self.acumulator += 1
 
         return [self.deck.pop() for _ in range(quantity)]
 
