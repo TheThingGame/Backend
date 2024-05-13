@@ -1,6 +1,6 @@
 from pony.orm import db_session
 from database.models.models import Match, Player, CARDS
-from database.models.enums import CardType
+from database.models.enums import CardType, CardColor
 from deserializers.match_deserializers import cards_deserializer
 from websocket import messages
 from utils.match_utils import lobbys
@@ -15,8 +15,6 @@ async def start(match_id: int):
     pot = cards_deserializer([state.top_card])[0]
     pot_type = pot["type"]
 
-    print("START CURREN TURN:", turn)
-    print("START PREV TURN:", player_affected)
     # Envía un mensaje de inicio del juego a cada jugador
     for player in match.players:
         hand = cards_deserializer(player.hand)
@@ -60,8 +58,7 @@ async def start(match_id: int):
 async def play_card(match_id: int, card: dict):
     state = Match[match_id].state
     turn = state.get_current_turn
-    print("ACTION CURRENT TURN, NEXT:", state.get_current_turn)
-    print("ACTION PREV TURN, NEXT:", state.get_prev_turn)
+
     message_to_broadcast = {
         "action": card["type"],
         "turn": turn,
@@ -83,10 +80,11 @@ async def steal_card(match_id: int, cards: list):
         message_data["turn"] = current_turn
         await lobbys[match_id].send_personal_message(message_data, prev_turn)
         broadcast_data["player"] = prev_turn
+        broadcast_data["turn"] = current_turn
     else:
         await lobbys[match_id].send_personal_message(message_data, current_turn)
         broadcast_data["player"] = current_turn
-    await lobbys[match_id].broadcast(broadcast_data)
+    await lobbys[match_id].broadcast(broadcast_data, broadcast_data["player"])
 
 
 @db_session
@@ -109,8 +107,10 @@ async def change_color(match_id: int, color: str):
         "action": "CHANGE_COLOR",
         "color": color,
         "player": state.get_prev_turn,
-        "turn": state.get_current_turn,
     }
+    # podriamos chequear si current=prev
+    if state.color != CardColor.START:
+        message_to_broadcast["turn"] = state.get_current_turn
 
     await lobbys[match_id].broadcast(message_to_broadcast)
 

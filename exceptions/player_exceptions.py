@@ -72,3 +72,8 @@ NO_COLOR_CHOSEN_BEFORE_PLAY = HTTPException(
     status_code=status.HTTP_409_CONFLICT,
     detail="You must choose a color before making a play.",
 )
+
+NOT_A_PLAY_WAS_MADE = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="You must draw a card from the deck before passing the turn.",
+)

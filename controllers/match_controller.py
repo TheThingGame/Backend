@@ -3,6 +3,7 @@ from pony.orm import db_session
 from fastapi import APIRouter, status, WebSocket, WebSocketDisconnect, Body, Depends
 from typing import Annotated
 from database.models.models import Match, Player
+from database.models.enums import CardColor
 from database.dao.player_dao import create_player_or_400
 from database.dao.match_dao import (
     create_match_or_400,
@@ -133,9 +134,11 @@ async def next_turn(
     _=Depends(next_turn_validator),
 ):
     with db_session:
-        state = Match[match_id].state.next_turn(1)
+        state = Match[match_id].state
+        state.next_turn(1)
         state.acumulator = 0
 
+    # Avisamos a los jugadores del cambio de turno
     await actions.next_turn(match_id)
 
     return True
@@ -149,9 +152,9 @@ async def change_color(
 ):
     with db_session:
         # Para el caso inicial no deberia pasar el turno
-        # ACA HAY QUE HACER UN CAMBIO
+        state = Match[match_id].state
         if state.color == CardColor.WILDCARD:
-            state = Match[match_id].state.next_turn(1)
+            state.next_turn(1)
         state.color = payload.color
 
     # Avisamos a los jugadores del cambio de color

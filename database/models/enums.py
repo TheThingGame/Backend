@@ -16,7 +16,7 @@ class CardColor(str, Enum):
     GREEN = "GREEN"
     YELLOW = "YELLOW"
     START = "EMPTY"
-    WILCARD = "WILDCARD"
+    WILDCARD = "WILDCARD"
 
 
 class Direction(int, Enum):

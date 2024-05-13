@@ -5,7 +5,7 @@ from view_entities.match_view_entities import NewMatch, JoinMatch, ChangeColor
 from database.dao.match_dao import get_match_by_id
 from database.models.models import Match, Player
 from database.models.enums import CardColor, CardType
-from utils.player_utils import NOT_EXISTENT_PLAYER, NOT_A_PLAY_WAS_MADE
+from utils.player_utils import NOT_EXISTENT_PLAYER
 from exceptions import match_exceptions, player_exceptions
 from . import player_validators
 from typing import Annotated
@@ -48,8 +48,7 @@ def match_started_validator(match_id: int):
 def turn_validator(match_id: int, player_id: int):
     current_turn = Match[match_id].state.get_current_turn
     player_name = Player[player_id].name
-    print("CURRENT TURN VALIDATOR:", current_turn)
-    print("PLAYER NAME  TURN VALIDATOR:", player_name)
+
     if current_turn != player_name:
         raise match_exceptions.NOT_YOUR_TURN
 
@@ -72,8 +71,22 @@ def card_in_hand_validator(player_id: int, card_id: int):
 def color_validator(match_id: int):
     state = Match[match_id].state
     # El jugador primero debe hacer el cambio de color
-    if state.color and state.color in [CardColor.WILCARD, CardColor.START]:
+    if state.color and state.color in [CardColor.WILDCARD, CardColor.START]:
         raise player_exceptions.NO_COLOR_CHOSEN_BEFORE_PLAY
+
+
+def is_valid_card_for_play(card: dict, pot: dict, color: CardColor | None) -> bool:
+
+    if card["type"] in [CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD]:
+        return True
+
+    if color:
+        return card["color"] == color
+
+    if card["type"] == CardType.NUMBER:
+        return card["color"] == pot["color"] or card["number"] == pot["number"]
+
+    return card["type"] in [CardType.TAKE_TWO, CardType.REVERSE, CardType.JUMP]
 
 
 @db_session
@@ -104,20 +117,6 @@ def follow_match_validator(match_id: int, player_id: int) -> bool:
     return True
 
 
-def is_valid_card_for_play(card: dict, pot: dict, color: CardColor | None) -> bool:
-
-    if card["type"] in [CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD]:
-        return True
-
-    if color:
-        return card["color"] == color
-
-    if card["type"] == CardType.NUMBER:
-        return card["color"] == pot["color"] or card["number"] == pot["number"]
-
-    return card["type"] in [CardType.TAKE_TWO, CardType.REVERSE, CardType.JUMP]
-
-
 @db_session
 def play_card_validator(match_id: int, payload: PlayCard):
     # Chequeamos si la partida existe
@@ -139,9 +138,10 @@ def play_card_validator(match_id: int, payload: PlayCard):
     card_in_hand_validator(payload.player_id, payload.card_id)
 
     # Chequeamos si la carta que el jugador quiere jugar es la ultima carta que robo
+    state = Match[match_id].state
     if state.acumulator == 1:
         player = Player[payload.player_id]
-        last_card_played = player.hand[-1]["id"]
+        last_card_played = player.hand[-1]
 
         if payload.card_id != last_card_played:
             raise player_exceptions.UNPLAYED_STOLEN_CARD
@@ -194,7 +194,7 @@ def next_turn_validator(match_id: int, player_id: Annotated[int, Body(embed=True
     color_validator(match_id)
 
     # Chequeamos si el jugador hizo una jugada antes de pasar el turno
-    if Match[match_id].state.acumulator == 0:
+    if Match[match_id].state.acumulator != 1:
         raise player_exceptions.NOT_A_PLAY_WAS_MADE
 
 
@@ -207,14 +207,17 @@ def change_color_validator(match_id: int, payload: ChangeColor):
     player_validators.player_exists_validator(payload.player_id)
 
     # Chequeamos si el jugador pertenece a la partida
-    player_in_match_validator(match_id, player_id)
+    player_in_match_validator(match_id, payload.player_id)
 
     # Chequeamos si es el turno del jugador
     turn_validator(match_id, payload.player_id)
 
     # Chequear si el color es valido
-    if color not in CardColor.__members__.values():
+    if payload.color not in CardColor.__members__.values():
         raise player_exceptions.INVALID_COLOR
+
+    if Match[match_id].state.color in [CardColor.START, CardColor.WILDCARD]:
+        return
 
     # Chequear si ya hubo cambio de color
     if Match[match_id].state.color:

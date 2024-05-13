@@ -127,16 +127,14 @@ class MatchState(db.Entity):
 
         if card_type == CardType.REVERSE:
             self.direction = self.reverse()
+
         if card_type == CardType.JUMP:
-            print("BEFORE CURRENT TURN, NEXT:", self.get_current_turn)
-            print("BEFORE PREV TURN, NEXT:", self.get_prev_turn)
             self.next_turn(1)
-            print("AFTER CURRENT TURN, NEXT:", self.get_current_turn)
-            print("AFTER PREV TURN, NEXT:", self.get_prev_turn)
 
         if card_type == CardType.TAKE_TWO:
             self.acumulator += 2
             self.next_turn(1)
+
         if card_type == CardType.WILDCARD:
             self.color = CardColor.START
 
@@ -159,8 +157,6 @@ class MatchState(db.Entity):
         self.current_turn = (self.current_turn + (self.direction * steps)) % len(
             self.ordered_players
         )
-        print("CURRENT TURN, NEXT:", self.get_current_turn)
-        print("PREV TURN, NEXT:", self.get_prev_turn)
 
     def steal(self):
         if len(self.deck) < 1 or len(self.deck) < self.acumulator:
