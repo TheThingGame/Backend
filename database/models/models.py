@@ -66,8 +66,7 @@ class Match(db.Entity):
         while self.__randomized_cards[-1]["type"] == CardType.TAKE_FOUR_WILDCARD:
             random.shuffle(self.__randomized_cards)
 
-        # pot = [self.__randomized_cards.pop()["id"]]
-        pot = [100]
+        pot = [self.__randomized_cards.pop()["id"]]
         deck = [card["id"] for card in self.__randomized_cards]
         return pot, deck
 
