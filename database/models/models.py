@@ -11,8 +11,6 @@ from pony.orm import (
     Set,
     IntArray,
     StrArray,
-    composite_key,
-    db_session,
 )
 from exceptions.match_exceptions import NOT_ENOUGH_PLAYERS
 from .enums import CardType, CardColor, Direction
@@ -58,7 +56,7 @@ class Match(db.Entity):
     @property
     def deal_cards(self):
         for player in self.players:
-            for _ in range(7):
+            for _ in range(1):
                 player.hand.append(self.__randomized_cards.pop()["id"])
 
     @property
@@ -85,6 +83,7 @@ class Match(db.Entity):
 
         # Damos un orden a los jugadores
         ordered_players = [player.name for player in self.players]
+        random.shuffle(ordered_players)
 
         self.started = True
 
@@ -92,7 +91,6 @@ class Match(db.Entity):
             match=self, pot=pot, deck=deck, ordered_players=ordered_players
         )
 
-        # Si la carta es de accion penalizamos a un jugador
         state.apply_action_card_penalty
 
 
@@ -132,7 +130,6 @@ class MatchState(db.Entity):
 
         if card_type == CardType.TAKE_TWO:
             self.acumulator += 2
-            self.next_turn(1)
 
         if card_type == CardType.WILDCARD:
             self.color = CardColor.START

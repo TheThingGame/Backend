@@ -1,15 +1,13 @@
-import re
 from pony.orm import db_session, ObjectNotFound
-from fastapi import HTTPException, status, WebSocket, Body
+from fastapi import Body
 from view_entities.match_view_entities import NewMatch, JoinMatch, ChangeColor
 from database.dao.match_dao import get_match_by_id
 from database.models.models import Match, Player
 from database.models.enums import CardColor, CardType
-from utils.player_utils import NOT_EXISTENT_PLAYER
 from exceptions import match_exceptions, player_exceptions
 from . import player_validators
 from typing import Annotated
-from view_entities.card_view_entities import PlayCard
+from view_entities.match_view_entities import PlayCard
 from deserializers.match_deserializers import cards_deserializer
 
 
@@ -25,7 +23,6 @@ def new_match_validator(match: NewMatch):
 
 @db_session
 def join_match_validator(join: JoinMatch):
-    # Chequeamos si el nombre es correcto
     player_validators.player_name_validator(join.player_name)
 
 
@@ -69,9 +66,9 @@ def card_in_hand_validator(player_id: int, card_id: int):
 
 @db_session
 def color_validator(match_id: int):
-    state = Match[match_id].state
     # El jugador primero debe hacer el cambio de color
-    if state.color and state.color in [CardColor.WILDCARD, CardColor.START]:
+    color = Match[match_id].state.color
+    if color and color in [CardColor.WILDCARD, CardColor.START]:
         raise player_exceptions.NO_COLOR_CHOSEN_BEFORE_PLAY
 
 
@@ -91,16 +88,9 @@ def is_valid_card_for_play(card: dict, pot: dict, color: CardColor | None) -> bo
 
 @db_session
 def start_match_validator(player_id: Annotated[int, Body(embed=True)], match_id: int):
-    # Comprobar si la partida existe
     match_exists_validator(match_id)
-
-    # Comprobar si la partida está iniciada
     match_started_validator(match_id)
-
-    # Comprobar si el jugador existe
     player_validators.player_exists_validator(player_id)
-
-    # Comprobar si el que inicia la partida es el creador
     player_validators.is_creator_validator(player_id)
 
 
@@ -112,29 +102,18 @@ def follow_match_validator(match_id: int, player_id: int) -> bool:
 
     player = Player.get(player_id=player_id, match=match)
     if not player:
-        return Falses
+        return False
 
     return True
 
 
 @db_session
 def play_card_validator(match_id: int, payload: PlayCard):
-    # Chequeamos si la partida existe
     match_exists_validator(match_id)
-
-    # Chequeamos si el jugador existe
     player_validators.player_exists_validator(payload.player_id)
-
-    # Chequeamos si el jugador pertenece a la partida
     player_in_match_validator(match_id, payload.player_id)
-
-    # Chequeamos si es el turno del jugador
     turn_validator(match_id, payload.player_id)
-
-    # Chequeamos si se selecciono un color antes jugar una carta
     color_validator(match_id)
-
-    # Chequeamos si la carta existe en la mano del jugador
     card_in_hand_validator(payload.player_id, payload.card_id)
 
     # Chequeamos si la carta que el jugador quiere jugar es la ultima carta que robo
@@ -156,19 +135,10 @@ def play_card_validator(match_id: int, payload: PlayCard):
 
 @db_session
 def steal_card_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
-    # Chequeamos si la partida existe
     match_exists_validator(match_id)
-
-    # Chequeamos si el jugador existe
     player_validators.player_exists_validator(player_id)
-
-    # Chequeamos si el jugador pertenece a la partida
     player_in_match_validator(match_id, player_id)
-
-    # Chequeamos si es el turno del jugador
     turn_validator(match_id, player_id)
-
-    # Chequeamos si se selecciono un color antes de robar una carta
     color_validator(match_id)
 
     # Chequeamos que el jugador no vuelva a robar otra carta si ya lo hizo
@@ -178,19 +148,10 @@ def steal_card_validator(match_id: int, player_id: Annotated[int, Body(embed=Tru
 
 @db_session
 def next_turn_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
-    # Chequeamos si la partida existe
     match_exists_validator(match_id)
-
-    # Chequeamos si el jugador existe
     player_validators.player_exists_validator(player_id)
-
-    # Chequeamos si el jugador pertenece a la partida
     player_in_match_validator(match_id, player_id)
-
-    # Chequeamos si es el turno del jugador
     turn_validator(match_id, player_id)
-
-    # Chequeamos si se selecciono un color antes de pasar turno
     color_validator(match_id)
 
     # Chequeamos si el jugador hizo una jugada antes de pasar el turno
@@ -200,25 +161,39 @@ def next_turn_validator(match_id: int, player_id: Annotated[int, Body(embed=True
 
 @db_session
 def change_color_validator(match_id: int, payload: ChangeColor):
-    # Chequeamos si la partida existe
     match_exists_validator(match_id)
-
-    # Chequeamos si el jugador existe
     player_validators.player_exists_validator(payload.player_id)
-
-    # Chequeamos si el jugador pertenece a la partida
     player_in_match_validator(match_id, payload.player_id)
-
-    # Chequeamos si es el turno del jugador
     turn_validator(match_id, payload.player_id)
 
     # Chequear si el color es valido
     if payload.color not in CardColor.__members__.values():
         raise player_exceptions.INVALID_COLOR
 
-    if Match[match_id].state.color in [CardColor.START, CardColor.WILDCARD]:
+    color = Match[match_id].state.color
+    if color in [CardColor.START, CardColor.WILDCARD]:
         return
 
     # Chequear si ya hubo cambio de color
-    if Match[match_id].state.color:
+    if color:
         raise player_exceptions.INVALID_COLOR_CHANGE_EXCEPTION
+
+
+@db_session
+def leave_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
+    match_exists_validator(match_id)
+    player_validators.player_exists_validator(player_id)
+    player_in_match_validator(match_id, player_id)
+
+
+@db_session
+def uno_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
+    match_exists_validator(match_id)
+    player_validators.player_exists_validator(player_id)
+    player_in_match_validator(match_id, player_id)
+
+    player = Player[player_id]
+    if len(player.hand) > 1:
+        raise player_exceptions.MULTIPLE_CARDS_UNO
+    if player.uno:
+        raise player_exceptions.ALREADY_SONG_UNO

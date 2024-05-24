@@ -1,9 +1,5 @@
-from fastapi import HTTPException, status
-from pydantic import BaseModel, field_validator
-from pydantic_core import PydanticCustomError
 from pydantic import BaseModel, UUID4
 from typing import List
-from re import match
 from database.models.enums import CardColor
 
 
@@ -45,3 +41,8 @@ class PlayCard(BaseModel):
 class ChangeColor(BaseModel):
     player_id: int
     color: CardColor
+
+
+class PlayCard(BaseModel):
+    player_id: int
+    card_id: int

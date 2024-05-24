@@ -1,28 +1,6 @@
 import json
-from fastapi import HTTPException, status, WebSocket
-from typing import Dict, List
-
-
-INVALID_PLAYER_NAME_LENGTH = HTTPException(
-    status_code=status.HTTP_409_CONFLICT,
-    detail="The name must be between 3 and 16 characters long.",
-)
-
-
-NOT_CREATOR = HTTPException(
-    status_code=status.HTTP_409_CONFLICT, detail="Only the creator can start the match."
-)
-
-
-NOT_ENOUGH_PLAYERS = HTTPException(
-    status_code=status.HTTP_409_CONFLICT,
-    detail="The minimum amount of players hasn't been reached.",
-)
-
-
-USER_ALREADY_JOINED = HTTPException(
-    status_code=status.HTTP_409_CONFLICT, detail="The user has already joined."
-)
+from fastapi import WebSocket
+from typing import Dict
 
 
 class LobbyManager:
@@ -34,8 +12,14 @@ class LobbyManager:
         await websocket.accept()
         self.active_connections[player_name] = websocket
 
-    def disconnect(self, player_name: str):
+    async def disconnect(self, player_name: str):
+        await self.active_connections[player_name].close()
         self.active_connections.pop(player_name)
+
+    async def destroy(self):
+        for websocket in self.active_connections.values():
+            await websocket.close()
+        self.active_connections.clear()
 
     async def send_personal_message(self, message: dict, player_name: str):
         await self.active_connections[player_name].send_text(json.dumps(message))

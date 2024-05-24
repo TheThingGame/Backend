@@ -77,3 +77,14 @@ NOT_A_PLAY_WAS_MADE = HTTPException(
     status_code=status.HTTP_409_CONFLICT,
     detail="You must draw a card from the deck before passing the turn.",
 )
+
+
+MULTIPLE_CARDS_UNO = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="You can't call 'UNO' with more than one card in your hand.",
+)
+
+# Caso 2: El jugador ya cantó "UNO" y trata de hacerlo de nuevo
+ALREADY_SONG_UNO = HTTPException(
+    status_code=status.HTTP_409_CONFLICT, detail="You've already called 'UNO'."
+)

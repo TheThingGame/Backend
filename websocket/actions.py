@@ -1,5 +1,5 @@
 from pony.orm import db_session
-from database.models.models import Match, Player, CARDS
+from database.models.models import Match, Player
 from database.models.enums import CardType, CardColor
 from deserializers.match_deserializers import cards_deserializer
 from websocket import messages
@@ -11,60 +11,55 @@ async def start(match_id: int):
     match = Match[match_id]
     state = match.state
     turn = state.get_current_turn
-    player_affected = state.get_prev_turn
+    prev_turn = state.get_prev_turn
     pot = cards_deserializer([state.top_card])[0]
     pot_type = pot["type"]
+    lobby = await lobbys[match_id]
 
     # Envía un mensaje de inicio del juego a cada jugador
     for player in match.players:
         hand = cards_deserializer(player.hand)
-        await lobbys[match_id].send_personal_message(
+        await lobby.send_personal_message(
             messages.start_message(hand, pot, turn), player.name
         )
 
-    # Maneja las penalizaciones de las cartas de acción
     if pot_type in [CardType.NUMBER, CardType.REVERSE]:
         return
 
     if pot_type == CardType.WILDCARD:
-        await lobbys[match_id].broadcast(
-            {"action": "WILDCARD", "player": state.get_current_turn}
-        )
-        return
+        await lobby.broadcast(messages.wildcard)
 
     if pot_type == CardType.TAKE_TWO:
-        player = Player.get(name=player_affected)
+        player = Player.get(name=prev_turn)
         cards = state.steal()
         player.hand.extend(cards)
 
-        await lobbys[match_id].send_personal_message(
-            {
-                "action": "TAKE",
-                "turn": state.get_current_turn,
-                "cards": cards_deserializer(cards),
-            },
-            player_affected,
-        )
+        await lobby.send_personal_message(messages.take, prev_turn)
+        await lobby.broadcast(messages.take_broadcast, prev_turn)
 
-    await lobbys[match_id].broadcast(
-        {"action": pot_type, "player": player_affected, "turn": state.get_current_turn},
-        player_affected,
-    )
-
-    return True
+    if pot_type == CardType.JUMP:
+        await lobby.broadcast(messages.jump)
 
 
 @db_session
-async def play_card(match_id: int, card: dict):
+async def play_card(match_id: int, card: dict = None, cards: list = None):
     state = Match[match_id].state
-    turn = state.get_current_turn
+    lobby = lobbys[match_id]
+    current_turn = state.get_current_turn
+    prev_turn = state.get_prev_turn
 
-    message_to_broadcast = {
-        "action": card["type"],
-        "turn": turn,
-        "pot": card,
-    }
-    await lobbys[match_id].broadcast(message_to_broadcast)
+    if cards:
+        await lobby.send_personal_message(
+            messages.not_uno(cards, current_turn), prev_turn
+        )
+        await lobby.broadcast(
+            messages.not_uno_broadcast(current_turn, prev_turn), prev_turn
+        )
+    else:
+        await lobby.broadcast(messages.card_played(card, current_turn, prev_turn))
+
+    if state.winner:
+        await lobby.broadcast(messages.winner(prev_turn))
 
 
 @db_session
@@ -108,7 +103,6 @@ async def change_color(match_id: int, color: str):
         "color": color,
         "player": state.get_prev_turn,
     }
-    # podriamos chequear si current=prev
     if state.color != CardColor.START:
         message_to_broadcast["turn"] = state.get_current_turn
 
@@ -116,16 +110,14 @@ async def change_color(match_id: int, color: str):
 
 
 @db_session
-async def uno(match_id: int, cards: list):
-    state = Match[match_id].state
+async def leave(match_id: int, player_name: str):
 
-    await lobbys[match_id].send_personal_message(
-        {"action": "NO_WIN", "cards": cards_deserializer(cards)}
-    )
-    await lobbys[match_id].broadcast(
-        {
-            "action": "NO_WIN",
-            "turn": state.get_current_turn,
-            "player": state.get_prev_turn,
-        }
-    )
+    match = Match.get(match_id=match_id)
+    if not match:
+        await lobbys[match_id].broadcast({"action": "lobby_destroy"})
+        await lobbys[match_id].destroy()
+    else:
+        await lobbys[match_id].broadcast(
+            {"action": "player_left", "player": player_name}, player_name
+        )
+        await lobbys[match_id].disconnect(player_name)

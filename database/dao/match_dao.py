@@ -1,12 +1,8 @@
 from pony.orm import db_session, TransactionIntegrityError
 from ..models.models import Match, Player
 from .player_dao import create_player_or_400
-from view_entities.match_view_entities import MatchInfo
-from exceptions import player_exceptions
 from exceptions import match_exceptions
-from ..models.models import CARDS
 from ..models.enums import CardColor, CardType
-from utils.match_utils import lobbys
 from deserializers.match_deserializers import cards_deserializer
 
 
@@ -70,12 +66,11 @@ def play_card_update(match_id: int, player_id: int, card: dict):
 
     if len(player.hand) == 1:
         if player.uno:
-            # Le sacamos la carta al jugador tmb, tenemos que agregar eso...
             state.winner = player.name
         else:
-            cards = state.steal + state.steal
+            cards = state.steal() + state.steal()
             player.hand.extend(cards)
-            state.nex_turn(1)
+            state.next_turn(1)
             return cards
 
     # Ahora la carta no pertenece al jugador sino al pozo
@@ -90,7 +85,6 @@ def play_card_update(match_id: int, player_id: int, card: dict):
         state.color = None
 
     # Ajustamos acumulador para TAKE_TWO o TAKE_FOUR_WILDCARD
-
     if card_type == CardType.TAKE_TWO:
         state.acumulator += 2
     elif card_type == CardType.TAKE_FOUR_WILDCARD:
@@ -107,7 +101,7 @@ def play_card_update(match_id: int, player_id: int, card: dict):
     if card_type == CardType.REVERSE:
         state.reverse
 
-    # Pasamoss el turno
+    # Pasamos el turno
     if card_type == CardType.JUMP:
         state.next_turn(2)
     else:
@@ -117,5 +111,38 @@ def play_card_update(match_id: int, player_id: int, card: dict):
 @db_session
 def steal_card_update(match_id: int, player_id: int) -> list:
     steal_cards = Match[match_id].state.steal()
-    player = Player[player_id].hand.extend(steal_cards)
+    player = Player[player_id]
+    player.hand.extend(steal_cards)
+
+    if player.uno:
+        player.uno = False
+
     return cards_deserializer(steal_cards)
+
+
+@db_session
+def update_leave_lobby(match_id: int, player_id: int):
+    player = Player[player_id]
+    match = Match[match_id]
+
+    if player.creator:
+        match.delete()
+    else:
+        player.delete()
+
+
+@db_session
+def update_leave_match(match_id: int, player_id: int):
+    player = Player[player_id]
+    match = Match[match_id]
+
+    if player.creator:
+        match.delete()
+    else:
+        state = match.state
+        if player.name == state.get_current_turn:
+            state.next_turn(1)
+
+        state.ordered_players.remove(player.name)
+        state.deck.extend(player.hand)
+        player.delete()
