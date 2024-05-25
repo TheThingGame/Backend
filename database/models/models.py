@@ -36,7 +36,7 @@ class Match(db.Entity):
     creator = Required(Player)
     code = Required(uuid.UUID, default=uuid.uuid4)
     min_players = Required(int, default=2)
-    max_players = Required(int, default=10)
+    max_players = Required(int, default=4)
     started = Required(bool, default=False)
     players = Set(Player)
     state = Optional("MatchState", reverse="match")
@@ -56,7 +56,7 @@ class Match(db.Entity):
     @property
     def deal_cards(self):
         for player in self.players:
-            for _ in range(1):
+            for _ in range(7):
                 player.hand.append(self.__randomized_cards.pop()["id"])
 
     @property
@@ -111,6 +111,10 @@ class MatchState(db.Entity):
         return self.pot[-1]
 
     @property
+    def length(self):
+        return len(self.ordered_players)
+
+    @property
     def steal_pot(self):
         top_card = self.pot.pop()
         new_deck = self.pot[:]
@@ -150,9 +154,7 @@ class MatchState(db.Entity):
 
     def next_turn(self, steps: int = 1):
         self.prev_turn = self.current_turn
-        self.current_turn = (self.current_turn + (self.direction * steps)) % len(
-            self.ordered_players
-        )
+        self.current_turn = (self.current_turn + (self.direction * steps)) % self.length
 
     def steal(self):
         if len(self.deck) < 1 or len(self.deck) < self.acumulator:

@@ -10,7 +10,7 @@ from utils.match_utils import lobbys
 async def start(match_id: int):
     match = Match[match_id]
     state = match.state
-    turn = state.get_current_turn
+    curr_turn = state.get_current_turn
     prev_turn = state.get_prev_turn
     pot = cards_deserializer([state.top_card])[0]
     pot_type = pot["type"]
@@ -20,43 +20,39 @@ async def start(match_id: int):
     for player in match.players:
         hand = cards_deserializer(player.hand)
         await lobby.send_personal_message(
-            messages.start_message(hand, pot, turn), player.name
+            messages.start(hand, pot, curr_turn), player.name
         )
 
     if pot_type in [CardType.NUMBER, CardType.REVERSE]:
         return
 
     if pot_type == CardType.WILDCARD:
-        await lobby.broadcast(messages.wildcard)
+        await lobby.broadcast(messages.wildcard(curr_turn))
 
     if pot_type == CardType.TAKE_TWO:
         player = Player.get(name=prev_turn)
         cards = state.steal()
         player.hand.extend(cards)
 
-        await lobby.send_personal_message(messages.take, prev_turn)
-        await lobby.broadcast(messages.take_broadcast, prev_turn)
+        await lobby.send_personal_message(messages.take(curr_turn, cards), prev_turn)
+        await lobby.broadcast(messages.take_all(prev_turn, curr_turn, 2), prev_turn)
 
     if pot_type == CardType.JUMP:
-        await lobby.broadcast(messages.jump)
+        await lobby.broadcast(messages.jump(prev_turn, curr_turn))
 
 
 @db_session
 async def play_card(match_id: int, card: dict = None, cards: list = None):
     state = Match[match_id].state
     lobby = lobbys[match_id]
-    current_turn = state.get_current_turn
+    curr_turn = state.get_current_turn
     prev_turn = state.get_prev_turn
 
     if cards:
-        await lobby.send_personal_message(
-            messages.not_uno(cards, current_turn), prev_turn
-        )
-        await lobby.broadcast(
-            messages.not_uno_broadcast(current_turn, prev_turn), prev_turn
-        )
+        await lobby.send_personal_message(messages.not_uno(cards, curr_turn), prev_turn)
+        await lobby.broadcast(messages.not_uno_all(curr_turn, prev_turn), prev_turn)
     else:
-        await lobby.broadcast(messages.card_played(card, current_turn, prev_turn))
+        await lobby.broadcast(messages.card_played(card, curr_turn, prev_turn))
 
     if state.winner:
         await lobby.broadcast(messages.winner(prev_turn))
@@ -65,33 +61,26 @@ async def play_card(match_id: int, card: dict = None, cards: list = None):
 @db_session
 async def steal_card(match_id: int, cards: list):
     state = Match[match_id].state
-    current_turn = state.get_current_turn
+    curr_turn = state.get_current_turn
     prev_turn = state.get_prev_turn
+    lobby = lobbys[match_id]
+    length = len(cards)
 
-    message_data = {"action": "TAKE", "cards": cards}
-    broadcast_data = {"action": "TAKE"}
+    if length > 1:
+        await lobby.send_personal_message(messages.take(curr_turn, cards), prev_turn)
+        await lobby.broadcast(
+            messages.take_all(prev_turn, curr_turn, length), prev_turn
+        )
 
-    if len(cards) > 1:
-        message_data["turn"] = current_turn
-        await lobbys[match_id].send_personal_message(message_data, prev_turn)
-        broadcast_data["player"] = prev_turn
-        broadcast_data["turn"] = current_turn
     else:
-        await lobbys[match_id].send_personal_message(message_data, current_turn)
-        broadcast_data["player"] = current_turn
-    await lobbys[match_id].broadcast(broadcast_data, broadcast_data["player"])
+        await lobby.send_personal_message(messages.steal(cards), curr_turn)
+        await lobby.broadcast(messages.steal_broadcast(), curr_turn)
 
 
 @db_session
 async def next_turn(match_id: int):
-    current_turn = Match[match_id].state.get_current_turn
-
-    message_to_broadcast = {
-        "action": "NEXT_TURN",
-        "turn": current_turn,
-    }
-
-    await lobbys[match_id].broadcast(message_to_broadcast)
+    curr_turn = Match[match_id].state.get_current_turn
+    await lobbys[match_id].broadcast(messages.next_turn(curr_turn))
 
 
 @db_session
@@ -111,13 +100,22 @@ async def change_color(match_id: int, color: str):
 
 @db_session
 async def leave(match_id: int, player_name: str):
-
     match = Match.get(match_id=match_id)
+    state = match.state
+    curr_turn = state.get_current_turn
+    prev_turn = state.get_prev_turn
+    lobby = lobbys[match_id]
+
     if not match:
-        await lobbys[match_id].broadcast({"action": "lobby_destroy"})
-        await lobbys[match_id].destroy()
-    else:
-        await lobbys[match_id].broadcast(
-            {"action": "player_left", "player": player_name}, player_name
-        )
-        await lobbys[match_id].disconnect(player_name)
+        await lobby.broadcast({"action": "LOBBY_DESTROY"})
+        await lobby.destroy()
+        return
+
+    await lobby.broadcast(messages.leave(player_name))
+    if state and state.length == 1:
+        await lobby.broadcast({"action": "MATCH_OVER"}, player_name)
+
+    if state and prev_turn == player_name:
+        await lobby.broadcast(messages.next_turn(curr_turn), player_name)
+
+    await lobby.disconnect(player_name)

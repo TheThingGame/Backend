@@ -108,10 +108,16 @@ def follow_match_validator(match_id: int, player_id: int) -> bool:
 
 
 @db_session
-def play_card_validator(match_id: int, payload: PlayCard):
+def actions_validator(match_id: int, player_id: int):
     match_exists_validator(match_id)
-    player_validators.player_exists_validator(payload.player_id)
-    player_in_match_validator(match_id, payload.player_id)
+    match_started_validator(match_id)
+    player_validators.player_exists_validator(player_id)
+    player_in_match_validator(match_id, player_id)
+
+
+@db_session
+def play_card_validator(match_id: int, payload: PlayCard):
+    actions_validator(match_id, payload.player_id)
     turn_validator(match_id, payload.player_id)
     color_validator(match_id)
     card_in_hand_validator(payload.player_id, payload.card_id)
@@ -135,9 +141,7 @@ def play_card_validator(match_id: int, payload: PlayCard):
 
 @db_session
 def steal_card_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
-    match_exists_validator(match_id)
-    player_validators.player_exists_validator(player_id)
-    player_in_match_validator(match_id, player_id)
+    actions_validator(match_id, player_id)
     turn_validator(match_id, player_id)
     color_validator(match_id)
 
@@ -148,9 +152,7 @@ def steal_card_validator(match_id: int, player_id: Annotated[int, Body(embed=Tru
 
 @db_session
 def next_turn_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
-    match_exists_validator(match_id)
-    player_validators.player_exists_validator(player_id)
-    player_in_match_validator(match_id, player_id)
+    actions_validator(match_id, player_id)
     turn_validator(match_id, player_id)
     color_validator(match_id)
 
@@ -161,9 +163,7 @@ def next_turn_validator(match_id: int, player_id: Annotated[int, Body(embed=True
 
 @db_session
 def change_color_validator(match_id: int, payload: ChangeColor):
-    match_exists_validator(match_id)
-    player_validators.player_exists_validator(payload.player_id)
-    player_in_match_validator(match_id, payload.player_id)
+    actions_validator(match_id, payload.player_id)
     turn_validator(match_id, payload.player_id)
 
     # Chequear si el color es valido
@@ -188,12 +188,20 @@ def leave_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
 
 @db_session
 def uno_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
-    match_exists_validator(match_id)
-    player_validators.player_exists_validator(player_id)
-    player_in_match_validator(match_id, player_id)
+    actions_validator(match_id, player_id)
 
     player = Player[player_id]
     if len(player.hand) > 1:
         raise player_exceptions.MULTIPLE_CARDS_UNO
     if player.uno:
         raise player_exceptions.ALREADY_SONG_UNO
+
+
+@db_session
+def play_again_validator(match_id: int, player_id: Annotated[int, Body(embed=True)]):
+    actions_validator(match_id, player_id)
+    player_validators.is_creator_validator(player_id)
+
+    state = Match[match_id].state
+    if not state.winner:
+        raise player_exceptions.NO_UNO

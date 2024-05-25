@@ -88,3 +88,8 @@ MULTIPLE_CARDS_UNO = HTTPException(
 ALREADY_SONG_UNO = HTTPException(
     status_code=status.HTTP_409_CONFLICT, detail="You've already called 'UNO'."
 )
+
+
+NO_UNO = HTTPException(
+    status_code=status.HTTP_409_CONFLICT, detail="The match is not over."
+)

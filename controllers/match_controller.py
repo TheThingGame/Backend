@@ -22,11 +22,9 @@ from validators.match_validators import (
     change_color_validator,
     leave_validator,
     uno_validator,
+    play_again_validator,
 )
-from utils.match_utils import (
-    LobbyManager,
-    lobbys,
-)
+from utils.match_utils import LobbyManager, lobbys
 from view_entities.match_view_entities import (
     NewMatch,
     JoinMatch,
@@ -89,7 +87,6 @@ async def start(
         match.start()
 
     await actions.start(match_id)
-    return True
 
 
 @match_controller.put("/play-card/{match_id}", status_code=status.HTTP_200_OK)
@@ -97,8 +94,6 @@ async def play_card(match_id: int, payload: PlayCard, _=Depends(play_card_valida
     card = cards_deserializer([payload.card_id])[0]
     cards = play_card_update(match_id, payload.player_id, card)
     await actions.play_card(match_id, card, cards)
-
-    return True
 
 
 @match_controller.put("/steal-card/{match_id}", status_code=status.HTTP_200_OK)
@@ -110,7 +105,6 @@ async def steal_card(
     cards = steal_card_update(match_id, player_id)
 
     await actions.steal_card(match_id, cards)
-    return True
 
 
 @match_controller.put("/next-turn/{match_id}", status_code=status.HTTP_200_OK)
@@ -125,7 +119,6 @@ async def next_turn(
         state.acumulator = 0
 
     await actions.next_turn(match_id)
-    return True
 
 
 @match_controller.put("/change-color/{match_id}", status_code=status.HTTP_200_OK)
@@ -142,10 +135,9 @@ async def change_color(
         state.color = payload.color
 
     await actions.change_color(match_id, payload.color)
-    return True
 
 
-@match_controller.delete("/leave/{match_id}")
+@match_controller.delete("/leave/{match_id}", status_code=status.HTTP_200_OK)
 async def leave(
     match_id: int,
     player_id: Annotated[int, Body(embed=True)],
@@ -163,10 +155,9 @@ async def leave(
             update_leave_lobby(match_id, player_id)
 
     await actions.leave(match_id, player)
-    return True
 
 
-@match_controller.put("/uno/{match_id}")
+@match_controller.put("/uno/{match_id}", status_code=status.HTTP_200_OK)
 async def uno(
     match_id: int,
     player_id: Annotated[int, Body(embed=True)],
@@ -176,7 +167,21 @@ async def uno(
     with db_session:
         player = Player[player_id]
         player.uno = True
-        await lobbys[match_id].broadcast(
-            {"action": "UNO", "player": Match[match_id].get_current_turn}
-        )
-    return True
+        await lobbys[match_id].broadcast(messages.uno(player.name))
+
+
+@match_controller.put("/play_again/{match_id}", status_code=status.HTTP_200_OK)
+async def play_again(
+    match_id: int,
+    player_id: Annotated[int, Body(embed=True)],
+    _=Depends(play_again_validator),
+):
+
+    with db_session:
+        match = Match[match_id]
+        match.state.delete()
+        match.started = False
+        for player in match.players:
+            player.hand.clear()
+
+    lobbys[match_id].broadcast({"action": "PLAY_AGAIN"})

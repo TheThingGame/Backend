@@ -3,7 +3,6 @@ from ..models.models import Match, Player
 from .player_dao import create_player_or_400
 from exceptions import match_exceptions
 from ..models.enums import CardColor, CardType
-from deserializers.match_deserializers import cards_deserializer
 
 
 @db_session
@@ -117,7 +116,7 @@ def steal_card_update(match_id: int, player_id: int) -> list:
     if player.uno:
         player.uno = False
 
-    return cards_deserializer(steal_cards)
+    return steal_cards
 
 
 @db_session
@@ -140,6 +139,9 @@ def update_leave_match(match_id: int, player_id: int):
         match.delete()
     else:
         state = match.state
+        if len(state.ordered_players) == 2:
+            state.delete()
+            match.started = False
         if player.name == state.get_current_turn:
             state.next_turn(1)
 

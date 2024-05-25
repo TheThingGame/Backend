@@ -41,8 +41,3 @@ class PlayCard(BaseModel):
 class ChangeColor(BaseModel):
     player_id: int
     color: CardColor
-
-
-class PlayCard(BaseModel):
-    player_id: int
-    card_id: int
