@@ -1,6 +1,7 @@
 import uuid
 import json
 import random
+from os import getenv
 from copy import deepcopy
 from pony.orm import (
     Database,
@@ -12,8 +13,9 @@ from pony.orm import (
     IntArray,
     StrArray,
 )
-from exceptions.match_exceptions import NOT_ENOUGH_PLAYERS
 from .enums import CardType, CardColor, Direction
+from utils import errors
+from fastapi import status
 
 db = Database()
 CARDS = json.load(open("static/cards.json"))
@@ -70,7 +72,7 @@ class Match(db.Entity):
 
     def start(self):
         if self.min_players > self.num_players or self.max_players < self.num_players:
-            raise NOT_ENOUGH_PLAYERS
+            errors.throw(status.HTTP_409_CONFLICT, errors.NOT_ENOUGH_PLAYERS)
 
         # Mezclamos las cartas
         self.shuffle_cards
@@ -171,5 +173,14 @@ class MatchState(db.Entity):
         return [self.deck.pop() for _ in range(quantity)]
 
 
-db.bind(provider="sqlite", filename="database.sqlite", create_db=True)
-db.generate_mapping(create_tables=True)
+def open_database(filename):
+    db.bind("sqlite", filename, create_db=True)
+    db.generate_mapping(create_tables=True)
+
+
+# When testing (pytest), it gets set to TESTING and creates a database in RAM memory
+RUNNING_ENVIRONMENT = getenv("DB_ENV", "DEPLOYMENT")
+if RUNNING_ENVIRONMENT == "TESTING":
+    open_database(":sharedmemory:")
+else:
+    open_database("database.sqlite")

@@ -1,5 +1,5 @@
 from pony.orm import db_session, ObjectNotFound
-from fastapi import Body
+from fastapi import Body, status
 from view_entities.match_view_entities import NewMatch, JoinMatch, ChangeColor
 from database.dao.match_dao import get_match_by_id
 from database.models.models import Match, Player
@@ -9,11 +9,12 @@ from . import player_validators
 from typing import Annotated
 from view_entities.match_view_entities import PlayCard
 from deserializers.match_deserializers import cards_deserializer
+from utils import errors
 
 
 def match_name_validator(match_name: str):
     if len(match_name) < 3 or len(match_name) > 16:
-        raise match_exceptions.INVALID_MATCH_LENGTH
+        errors.throw(status.HTTP_400_BAD_REQUEST, errors.INVALID_MATCH_NAME_LENGTH)
 
 
 def new_match_validator(match: NewMatch):

@@ -3,6 +3,8 @@ from ..models.models import Match, Player
 from .player_dao import create_player_or_400
 from exceptions import match_exceptions
 from ..models.enums import CardColor, CardType
+from utils import errors
+from fastapi import status
 
 
 @db_session
@@ -12,10 +14,14 @@ def create_match_or_400(match_name: str, creator_id: int) -> int:
         match = Match(name=match_name, creator=creator, players=[creator])
         match.flush()
         return match.match_id
+
     except TransactionIntegrityError:
-        raise match_exceptions.MATCH_EXISTS
-    except Exception as e:
-        raise match_exceptions.INTERNAL_ERROR_CREATING_MATCH from e
+        errors.throw(status.HTTP_400_BAD_REQUEST, errors.MATCH_EXISTS)
+
+    except Exception:
+        errors.throw(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, errors.INTERNAL_ERROR_CREATING_MATCH
+        )
 
 
 @db_session
