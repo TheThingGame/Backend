@@ -95,6 +95,8 @@ async def play_card(match_id: int, payload: PlayCard, _=Depends(play_card_valida
     cards = play_card_update(match_id, payload.player_id, card)
     await actions.play_card(match_id, card, cards)
 
+    return True
+
 
 @match_controller.put("/steal-card/{match_id}", status_code=status.HTTP_200_OK)
 async def steal_card(
@@ -137,13 +139,13 @@ async def change_color(
     await actions.change_color(match_id, payload.color)
 
 
-@match_controller.delete("/leave/{match_id}", status_code=status.HTTP_200_OK)
+@match_controller.post("/leave/{match_id}", status_code=status.HTTP_200_OK)
 async def leave(
     match_id: int,
     player_id: Annotated[int, Body(embed=True)],
     _=Depends(leave_validator),
 ):
-
+    print("player_id:", player_id)
     player = None
     with db_session:
         match = Match[match_id]

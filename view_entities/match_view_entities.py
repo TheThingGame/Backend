@@ -10,7 +10,7 @@ class NewMatch(BaseModel):
 
 class JoinMatch(BaseModel):
     player_name: str
-    code: UUID4
+    code: str
 
 
 class Player(BaseModel):

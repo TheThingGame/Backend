@@ -20,6 +20,10 @@ MATCH_ALREADY_STARTED = HTTPException(
     status_code=status.HTTP_409_CONFLICT, detail="The match has already started."
 )
 
+MATCH_NOT_STARTED = HTTPException(
+    status_code=status.HTTP_409_CONFLICT, detail="The match is not started."
+)
+
 MATCH_FULL = HTTPException(
     status_code=status.HTTP_409_CONFLICT,
     detail="The game you are trying to join is already full.",

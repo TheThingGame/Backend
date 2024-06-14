@@ -43,6 +43,12 @@ def match_started_validator(match_id: int):
 
 
 @db_session
+def match_not_started_validator(match_id: int):
+    match = Match[match_id]
+    if not match.started:
+        raise match_exceptions.MATCH_NOT_STARTED
+
+@db_session
 def turn_validator(match_id: int, player_id: int):
     current_turn = Match[match_id].state.get_current_turn
     player_name = Player[player_id].name
@@ -54,7 +60,10 @@ def turn_validator(match_id: int, player_id: int):
 @db_session
 def player_in_match_validator(match_id: int, player_id: int):
     player = Player[player_id]
-    if player.name not in Match[match_id].state.ordered_players:
+    players=[p.name for p in Match[match_id].players]
+
+    print("PLAYERS:",players)
+    if player.name not in players:
         raise player_exceptions.PLAYER_NOT_IN_MATCH
 
 
@@ -74,17 +83,20 @@ def color_validator(match_id: int):
 
 
 def is_valid_card_for_play(card: dict, pot: dict, color: CardColor | None) -> bool:
-
     if card["type"] in [CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD]:
         return True
-
+    
     if color:
         return card["color"] == color
 
     if card["type"] == CardType.NUMBER:
         return card["color"] == pot["color"] or card["number"] == pot["number"]
 
-    return card["type"] in [CardType.TAKE_TWO, CardType.REVERSE, CardType.JUMP]
+    if card["type"] in [CardType.TAKE_TWO, CardType.REVERSE, CardType.JUMP]:
+        return card["color"] == pot["color"] or card["type"] == pot["type"]
+
+    return False
+
 
 
 @db_session
@@ -111,7 +123,7 @@ def follow_match_validator(match_id: int, player_id: int) -> bool:
 @db_session
 def actions_validator(match_id: int, player_id: int):
     match_exists_validator(match_id)
-    match_started_validator(match_id)
+    match_not_started_validator(match_id)
     player_validators.player_exists_validator(player_id)
     player_in_match_validator(match_id, player_id)
 

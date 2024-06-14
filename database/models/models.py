@@ -36,7 +36,7 @@ class Match(db.Entity):
     match_id = PrimaryKey(int, auto=True)
     name = Required(str, autostrip=True, unique=True)
     creator = Required(Player)
-    code = Required(uuid.UUID, default=uuid.uuid4)
+    code = Required(str, default=lambda: str(uuid.uuid4()))
     min_players = Required(int, default=2)
     max_players = Required(int, default=4)
     started = Required(bool, default=False)
