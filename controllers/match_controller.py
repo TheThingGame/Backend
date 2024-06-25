@@ -185,4 +185,4 @@ async def play_again(
         for player in match.players:
             player.hand.clear()
 
-    lobbys[match_id].broadcast({"action": "PLAY_AGAIN"})
+    await lobbys[match_id].broadcast({"action": "PLAY_AGAIN"})

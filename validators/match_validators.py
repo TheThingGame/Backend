@@ -86,10 +86,11 @@ def is_valid_card_for_play(card: dict, pot: dict, acumulator, color: CardColor |
         return True
     
     if pot["type"] == CardType.TAKE_FOUR_WILDCARD:
-        if card["type"] == CardType.TAKE_TWO:
-            return card["color"] == pot["color"]
-        else:
-            return False
+        if acumulator > 1 :
+            if card["type"] == CardType.TAKE_TWO:
+                return card["color"] == pot["color"]
+            else:
+                return False
     
     if pot["type"] == CardType.NUMBER:
         if card["type"] == CardType.NUMBER:
