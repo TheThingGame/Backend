@@ -62,7 +62,6 @@ def player_in_match_validator(match_id: int, player_id: int):
     player = Player[player_id]
     players=[p.name for p in Match[match_id].players]
 
-    print("PLAYERS:",players)
     if player.name not in players:
         raise player_exceptions.PLAYER_NOT_IN_MATCH
 
@@ -82,19 +81,32 @@ def color_validator(match_id: int):
         raise player_exceptions.NO_COLOR_CHOSEN_BEFORE_PLAY
 
 
-def is_valid_card_for_play(card: dict, pot: dict, color: CardColor | None) -> bool:
+def is_valid_card_for_play(card: dict, pot: dict, acumulator, color: CardColor | None) -> bool:
     if card["type"] in [CardType.WILDCARD, CardType.TAKE_FOUR_WILDCARD]:
         return True
     
+    if pot["type"] == CardType.TAKE_FOUR_WILDCARD:
+        if card["type"] == CardType.TAKE_TWO:
+            return card["color"] == pot["color"]
+        else:
+            return False
+    
+    if pot["type"] == CardType.NUMBER:
+        if card["type"] == CardType.NUMBER:
+            return card["color"] == pot["color"] or card["number"] == pot["number"]
+        else: 
+            return card["color"] == pot["color"]
+
+    if pot["type"] == CardType.TAKE_TWO:
+        if acumulator > 1:
+            return card["type"] == CardType.TAKE_TWO
+    
+    if pot["type"] in [CardType.TAKE_TWO, CardType.REVERSE, CardType.JUMP]:
+        return card["type"] == pot["type"] or card["color"] == pot["color"]
+    
     if color:
         return card["color"] == color
-
-    if card["type"] == CardType.NUMBER:
-        return card["color"] == pot["color"] or card["number"] == pot["number"]
-
-    if card["type"] in [CardType.TAKE_TWO, CardType.REVERSE, CardType.JUMP]:
-        return card["color"] == pot["color"] or card["type"] == pot["type"]
-
+    
     return False
 
 
@@ -148,7 +160,7 @@ def play_card_validator(match_id: int, payload: PlayCard):
     pot = cards_deserializer([state.top_card])[0]
 
     # Chequeamos si la carta puede ser tirada al pozo
-    if not is_valid_card_for_play(card, pot, state.color):
+    if not is_valid_card_for_play(card, pot,state.acumulator, state.color):
         raise player_exceptions.INVALID_PLAYED_CARD
 
 

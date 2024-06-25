@@ -23,22 +23,17 @@ async def start(match_id: int):
             messages.start(hand, player.name, state.ordered_players, pot, curr_turn), player.name
         )
 
-    if pot_type in [CardType.NUMBER, CardType.REVERSE]:
-        return
-
-    if pot_type == CardType.WILDCARD:
-        await lobby.broadcast(messages.wildcard(curr_turn))
-
     if pot_type == CardType.TAKE_TWO:
         player = Player.get(name=prev_turn)
+        #Steal pasa el turno
         cards = state.steal()
+        curr_turn = state.get_current_turn
+        prev_turn = state.get_prev_turn
         player.hand.extend(cards)
 
         await lobby.send_personal_message(messages.take(curr_turn, cards), prev_turn)
         await lobby.broadcast(messages.take_all(prev_turn, curr_turn, 2), prev_turn)
 
-    if pot_type == CardType.JUMP:
-        await lobby.broadcast(messages.jump(prev_turn, curr_turn))
 
 
 @db_session
@@ -50,10 +45,12 @@ async def play_card(match_id: int, card: dict = None, cards: list = None):
 
     if cards:
         await lobby.send_personal_message(messages.not_uno(cards, curr_turn), prev_turn)
-        await lobby.broadcast(messages.not_uno_all(curr_turn, prev_turn), prev_turn)
+        await lobby.broadcast(messages.not_uno_all(curr_turn, prev_turn, len(cards)), prev_turn)
     else:
-        #card: dict, turn: str, player_name: str
-        await lobby.broadcast(messages.card_played(card, curr_turn, prev_turn))
+        if card["type"] in ["WILDCARD", "TAKE_FOUR_WILDCARD"]:
+            await lobby.broadcast(messages.card_played(card, curr_turn, curr_turn))
+        else:
+            await lobby.broadcast(messages.card_played(card, curr_turn, prev_turn))
 
     if state.winner:
         await lobby.broadcast(messages.winner(prev_turn))
@@ -72,10 +69,9 @@ async def steal_card(match_id: int, cards: list):
         await lobby.broadcast(
             messages.take_all(prev_turn, curr_turn, length), prev_turn
         )
-
     else:
         await lobby.send_personal_message(messages.steal(cards), curr_turn)
-        await lobby.broadcast(messages.steal_broadcast(), curr_turn)
+        await lobby.broadcast(messages.steal_all(), curr_turn)
 
 
 @db_session

@@ -145,7 +145,6 @@ async def leave(
     player_id: Annotated[int, Body(embed=True)],
     _=Depends(leave_validator),
 ):
-    print("player_id:", player_id)
     player = None
     with db_session:
         match = Match[match_id]

@@ -86,6 +86,7 @@ class Match(db.Entity):
         # Damos un orden a los jugadores
         ordered_players = [player.name for player in self.players]
         random.shuffle(ordered_players)
+        random.shuffle(ordered_players)
 
         self.started = True
 

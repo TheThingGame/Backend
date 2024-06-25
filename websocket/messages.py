@@ -14,28 +14,28 @@ def not_uno(cards: list, turn: str) -> dict:
     return {"action": "NOT_UNO", "cards": cards_parse, "turn": turn}
 
 
-def not_uno_all(turn: str, player: str) -> dict:
-    return {"action": "NOT_UNO", "turn": turn, "player": player}
+def not_uno_all(turn: str, player_name: str, length:int) -> dict:
+    return {"action": "NOT_UNO", "turn": turn, "player_name": player_name, "length": length}
 
 
-def uno(player: str) -> dict:
-    return {"action": "UNO", "player": player}
+def uno(player_name: str) -> dict:
+    return {"action": "UNO", "player_name": player_name}
 
 
 def card_played(card: dict, turn: str, player_name: str) -> dict:
     return {"action": "PLAY_CARD", "player_name": player_name, "turn": turn, "pot": card}
 
 
-def winner(player: str) -> dict:
-    return {"action": "WINNER", "player": player}
+def winner(player_name: str) -> dict:
+    return {"action": "WINNER", "player_name": player_name}
 
 
-def wildcard(player: str) -> dict:
-    return {"action": "WILDCARD", "player": player}
+def wildcard(player_name: str) -> dict:
+    return {"action": "WILDCARD", "player_name": player_name}
 
 
 def steal(cards: list) -> dict:
-    return {"action": "STEAL", "cards": cards}
+    return {"action": "STEAL", "cards": cards_deserializer(cards)}
 
 
 def steal_all() -> dict:
@@ -46,12 +46,12 @@ def take(turn: str, cards: list) -> dict:
     return {"action": "TAKE", "turn": turn, "cards": cards_deserializer(cards)}
 
 
-def take_all(player: str, turn: str, length: int) -> dict:
-    return {"action": "TAKE", "player": player, "turn": turn, "length": length}
+def take_all(player_name: str, turn: str, length: int) -> dict:
+    return {"action": "TAKE", "player_name": player_name, "turn": turn, "length": length}
 
 
-def jump(player: str, turn: str) -> dict:
-    return {"action": "JUMP", "player": player, "turn": turn}
+def jump(player_name: str, turn: str) -> dict:
+    return {"action": "JUMP", "player_name": player_name, "turn": turn}
 
 
 def leave(player_name: str):
